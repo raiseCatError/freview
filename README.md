@@ -146,6 +146,15 @@ The CLI supports Python isolated mode (`python3 -I`), which avoids ambient Pytho
 
 Agent-generated Full/Partial JSON reports must include a per-category verification manifest; a Full report cannot claim that skipped checks or unperformed code reviews passed. The local helper remains a metadata snapshot, not a completed remote audit.
 
+
+Before publishing an agent-generated report, run an advisory privacy check (exit code `3` means one or more obvious risks were detected):
+
+```sh
+python3 -I skills/freview/scripts/report_tools.py --check-public --format json REPORT.json
+```
+
+The checker only names risk **categories**, not the suspected secret values; a clean result **never guarantees that publishing is safe**. Preserve the original privately, manually review issue titles, branch names and diffs, and never auto-upload freview outputs.
+
 ## Optional daily automation
 
 See the [scheduled GitHub Actions template](templates/github-actions/freview-daily.yml), which is **not active** until a user deliberately copies/configures it in their own repository. It generates a local Git snapshot, not a paid AI full review. Metadata artifact uploading is **off by default** and requires the explicit `FREVIEW_UPLOAD_ARTIFACT=true` repository variable. For a recurring agent-driven Standard report, configure your preferred scheduler and repository connector separately with explicit authorization. No hosted automation is silently provisioned.
