@@ -38,11 +38,19 @@ def candidates(items):
                      "url": item.get("url") if isinstance(item.get("url"), str) else None,
                      "t": tokens(title),
                      "duplicate_refs": set(re.findall(r"(?:duplicate|dupe)\s+of\s+#(\d+)",
+                                                      body.lower())),
+                     "implements_refs": set(re.findall(r"(?:closes|fixes|resolves)\s+#(\d+)",
                                                       body.lower()))})
     output = []
     for i, a in enumerate(rows):
         for b in rows[i + 1:]:
             if a["id"] == b["id"] and a["kind"] == b["kind"]:
+                continue
+            # A PR explicitly implementing an issue is not a duplicated work item.
+            if ((a["kind"] == "pr" and b["kind"] == "issue" and
+                 b["id"].lstrip("#") in a["implements_refs"]) or
+                (b["kind"] == "pr" and a["kind"] == "issue" and
+                 a["id"].lstrip("#") in b["implements_refs"])):
                 continue
             intersection = len(a["t"] & b["t"])
             similarity = intersection / len(a["t"] | b["t"]) if a["t"] | b["t"] else 0
