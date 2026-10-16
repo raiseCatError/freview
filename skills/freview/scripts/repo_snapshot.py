@@ -15,6 +15,36 @@ import subprocess
 import sys
 
 
+
+def _disabled_filter_settings(cwd, env):
+    """Neutralize configured Git clean/process/smudge hooks from untrusted repo."""
+    probe_command = ["git", "config", "--includes", "--null", "--name-only",
+                     "--get-regexp", r"^filter\..*\.(clean|process|smudge)$"]
+    try:
+        probe = subprocess.run(probe_command, cwd=cwd, env=env,
+                               stdin=subprocess.DEVNULL,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               check=False, timeout=10)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError("Could not inspect Git filter settings safely") from exc
+    if probe.returncode == 1:
+        return []
+    if probe.returncode or len(probe.stdout) > 65536:
+        raise RuntimeError("Git filter inspection failed; refusing audit")
+    try:
+        keys = [x.decode("utf-8", "strict") for x in probe.stdout.split(b"\0") if x]
+    except UnicodeDecodeError as exc:
+        raise RuntimeError("Invalid Git filter configuration; refusing audit") from exc
+    if len(keys) > 256:
+        raise RuntimeError("Too many Git filter drivers; refusing audit")
+    overrides = []
+    for key in sorted(set(keys)):
+        if not key.startswith("filter.") or not key.endswith((".clean", ".process", ".smudge")):
+            raise RuntimeError("Unexpected Git filter name; refusing audit")
+        overrides.extend(["-c", key + "="])
+    return overrides
+
+
 def git(args, cwd=None, allowed_failure=False):
     env = os.environ.copy()
     # Git's fsmonitor setting can execute arbitrary local programs even for
@@ -22,14 +52,18 @@ def git(args, cwd=None, allowed_failure=False):
     env["GIT_OPTIONAL_LOCKS"] = "0"
     env["GIT_TERMINAL_PROMPT"] = "0"
     env["GIT_NO_REPLACE_OBJECTS"] = "1"
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    env["GIT_CONFIG_GLOBAL"] = os.devnull
+    env["GIT_ATTR_NOSYSTEM"] = "1"
     try:
+        filter_overrides = _disabled_filter_settings(cwd, env)
         p = subprocess.run(
             ["git", "--no-optional-locks",
              "-c", "core.fsmonitor=false",
              "-c", "core.hooksPath=" + os.devnull,
              "-c", "diff.external=",
              "-c", "core.pager=cat",
-             *args], cwd=cwd, env=env, stdin=subprocess.DEVNULL,
+             *filter_overrides, *args], cwd=cwd, env=env, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=20
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
