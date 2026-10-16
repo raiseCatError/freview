@@ -58,7 +58,11 @@ def load_policy(path):
             if section == "repository":
                 if name == "release_branches":
                     check_str_list(value, key, 30, 200)
-                elif not isinstance(value, str) or not (1 <= len(value) <= 200):
+                    if any(any(ord(ch) < 32 or ord(ch) == 127 for ch in item)
+                           for item in value):
+                        raise ValueError(key + " contains control characters")
+                elif not isinstance(value, str) or not (
+                        1 <= len(value) <= (80 if name == "project_type" else 200)):
                     raise ValueError(key + " must be bounded text")
                 elif any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
                     raise ValueError(key + " contains control characters")
