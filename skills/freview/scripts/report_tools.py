@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Validate or compare freview JSON reports; standard library only, read-only."""
 import argparse
+import datetime as dt
+import re
 import json
 from pathlib import Path
 import sys
@@ -12,11 +14,96 @@ REQUIRED = {"schema_version", "generator", "report_kind", "timestamp_utc",
             "mode_requested", "scope", "repository", "findings", "not_observed"}
 
 
+def _matches_type(value, name):
+    return {
+        "object": lambda: isinstance(value, dict),
+        "array": lambda: isinstance(value, list),
+        "string": lambda: isinstance(value, str),
+        "integer": lambda: type(value) is int,
+        "number": lambda: type(value) in (int, float),
+        "boolean": lambda: type(value) is bool,
+        "null": lambda: value is None,
+    }[name]()
+
+
+def _validate(value, spec, root, location="$"):
+    """Validate the JSON-Schema vocabulary actually used by report schema v1.
+
+    Do not assert support for arbitrary third-party JSON Schemas.
+    """
+    if "$ref" in spec:
+        ref = spec["$ref"]
+        if not ref.startswith("#/"):
+            raise ValueError("Unsupported external schema reference")
+        target = root
+        for part in ref[2:].split("/"):
+            target = target[part.replace("~1", "/").replace("~0", "~")]
+        return _validate(value, target, root, location)
+    if "type" in spec:
+        permitted = spec["type"]
+        permitted = permitted if isinstance(permitted, list) else [permitted]
+        if not any(_matches_type(value, kind) for kind in permitted):
+            raise ValueError(location + ": invalid JSON type")
+    if "enum" in spec and value not in spec["enum"]:
+        raise ValueError(location + ": unsupported value")
+    if "const" in spec and (type(value) is not type(spec["const"]) or value != spec["const"]):
+        raise ValueError(location + ": invalid constant")
+    if isinstance(value, dict):
+        for key in spec.get("required", []):
+            if key not in value:
+                raise ValueError(location + ": missing required field " + key)
+        props = spec.get("properties", {})
+        for name, member in value.items():
+            if name in props:
+                _validate(member, props[name], root, location + "." + name)
+            elif spec.get("additionalProperties") is False:
+                raise ValueError(location + ": unexpected field " + name)
+            elif isinstance(spec.get("additionalProperties"), dict):
+                _validate(member, spec["additionalProperties"], root, location + "." + name)
+    if isinstance(value, list):
+        if len(value) < spec.get("minItems", 0) or len(value) > spec.get("maxItems", float("inf")):
+            raise ValueError(location + ": invalid array length")
+        if spec.get("uniqueItems") and len({json.dumps(item, sort_keys=True) for item in value}) != len(value):
+            raise ValueError(location + ": duplicate array elements")
+        if isinstance(spec.get("items"), dict):
+            for i, item in enumerate(value):
+                _validate(item, spec["items"], root, location + "[" + str(i) + "]")
+    if isinstance(value, str):
+        if len(value) < spec.get("minLength", 0) or len(value) > spec.get("maxLength", float("inf")):
+            raise ValueError(location + ": invalid string length")
+        if "pattern" in spec and not re.search(spec["pattern"], value):
+            raise ValueError(location + ": pattern mismatch")
+        if spec.get("format") == "date-time":
+            try:
+                parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+                if parsed.tzinfo is None or parsed.utcoffset() is None:
+                    raise ValueError()
+            except ValueError:
+                raise ValueError(location + ": invalid timezone-aware timestamp") from None
+    if type(value) in (int, float):
+        if value < spec.get("minimum", float("-inf")) or value > spec.get("maximum", float("inf")):
+            raise ValueError(location + ": invalid numeric range")
+    for condition in spec.get("allOf", []):
+        if "if" in condition:
+            try:
+                _validate(value, condition["if"], root, location)
+                passed = True
+            except ValueError:
+                passed = False
+            if passed and "then" in condition:
+                _validate(value, condition["then"], root, location)
+        else:
+            _validate(value, condition, root, location)
+
+
 def load(path):
     raw = Path(path).read_bytes()
     if len(raw) > 16 * 1024 * 1024:
         raise ValueError("Report exceeds 16 MiB")
     report = json.loads(raw.decode("utf-8"))
+    schema_file = Path(__file__).resolve().parents[1] / "assets/schemas/freview-report.schema.json"
+    schema = json.loads(schema_file.read_text(encoding="utf-8"))
+    _validate(report, schema, schema)
     if not isinstance(report, dict) or REQUIRED - set(report):
         raise ValueError("Missing top-level freview report keys")
     if type(report["schema_version"]) is not int or report["schema_version"] != 1:
@@ -66,7 +153,7 @@ def load(path):
 
 def identity(report):
     repo = report["repository"]
-    return repo.get("remote") or repo.get("root")
+    return repo.get("identity") or repo.get("remote") or repo.get("root")
 
 
 def compare(before, after):
@@ -74,8 +161,12 @@ def compare(before, after):
         raise ValueError("Reports refer to different repositories")
     if before["report_kind"] != after["report_kind"]:
         raise ValueError("Cannot compare different report kinds without misleading status changes")
-    if set(before["scope"]["included"]) != set(after["scope"]["included"]):
-        raise ValueError("Cannot compare different category coverage")
+    if (set(before["scope"]["included"]) != set(after["scope"]["included"]) or
+            set(before["scope"]["excluded"]) != set(after["scope"]["excluded"]) or
+            before["mode_requested"] != after["mode_requested"]):
+        raise ValueError("Cannot compare different mode/category coverage")
+    if (before["repository"].get("base_ref") != after["repository"].get("base_ref")):
+        raise ValueError("Cannot compare reports based on different integration baselines")
     old = {x["id"]: x for x in before["findings"]}
     new = {x["id"]: x for x in after["findings"]}
     return {
