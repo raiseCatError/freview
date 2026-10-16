@@ -31,6 +31,18 @@ def load(path):
             raise ValueError("Invalid scope." + key)
     if not isinstance(report["not_observed"], list) or not all(isinstance(x, str) for x in report["not_observed"]):
         raise ValueError("Invalid not_observed")
+    if report["report_kind"] in ("partial-audit", "full-audit"):
+        for key in ("remediation_plan", "duplicate_clusters"):
+            if not isinstance(report.get(key), list):
+                raise ValueError("Agent audit must include " + key + " list")
+        for action in report["remediation_plan"]:
+            if (not isinstance(action, dict) or action.get("requires_approval") is not True or
+                    not isinstance(action.get("verification"), list)):
+                raise ValueError("Invalid non-executed repair action")
+        for group in report["duplicate_clusters"]:
+            if (not isinstance(group, dict) or
+                    group.get("status") not in ("confirmed", "candidate", "related", "not-duplicate")):
+                raise ValueError("Invalid duplicate cluster")
     findings = report["findings"]
     if not isinstance(findings, list):
         raise ValueError("Findings must be an array")
