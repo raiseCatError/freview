@@ -95,6 +95,25 @@ class AgentDoctorTests(unittest.TestCase):
         self.assertTrue(report["bundle_complete"])
         self.assertFalse(report["activation_confirmed"])
 
+    def test_missing_bundle_referenced_document_is_incomplete(self):
+        root = self.home / ".agents/skills/freview"
+        for asset in DOCTOR.BUNDLE_REQUIRED:
+            p = root / asset
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("ok")
+        (root / "references/agent-discovery.md").unlink()
+        report = self.records()["opencode"]
+        self.assertTrue(report["freview_visible_on_disk"])
+        self.assertFalse(report["bundle_complete"])
+        self.assertIn("references/agent-discovery.md",
+                      report["skill_locations"][0]["missing_assets"])
+
+    def test_agy_checks_cross_product_and_cli_specific_paths(self):
+        entries = self.records()["agy"]["skill_locations"]
+        observed = {x["path"] for x in entries}
+        self.assertIn(str(self.home / ".gemini/config/skills/freview"), observed)
+        self.assertIn(str(self.home / ".gemini/antigravity-cli/skills/freview"), observed)
+
     def test_no_shell_scan_omits_aliases(self):
         (self.home / ".zshrc").write_text(
             "alias claude-account1='CLAUDE_CONFIG_DIR=~/one claude'\n")
