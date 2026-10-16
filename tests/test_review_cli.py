@@ -54,7 +54,7 @@ class ReviewCLITests(unittest.TestCase):
     def test_isolated_cli_from_unrelated_directory_does_not_import_repo_modules(self):
         # The CLI should load its paired helper, not anything from cwd.
         (self.root / "repo_snapshot.py").write_text(
-            "raise RuntimeError('untrusted working directory imported')\\n")
+            "raise RuntimeError('untrusted working directory imported')\n")
         result = run(self.root, sys.executable, "-I", str(CLI),
                      "--mode", "quick", "--format", "json")
         report = json.loads(result.stdout)
