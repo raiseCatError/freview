@@ -37,20 +37,20 @@ Codex's native skill installer can install a GitHub repo path; OpenCode discover
 Ask your coding agent to invoke **freview** from inside a repository, or point it at a remotely accessible repository.
 
 ```text
-freview                                  # Ask quick / standard / full; standard default
+freview                                  # Standard daily check; no code review
 freview quick                            # Rapid factual snapshot
 freview standard                         # Daily useful hygiene/status check
-freview full                             # Complete applicable structural audit
+freview full                             # Complete status audit PLUS deep code review
 freview full excluding security, docs    # Exclude selected categories
 freview only git, issues, releases       # Target specific categories
-freview full --with code-review          # Opt into deeper code-quality review
+freview standard --with code-review      # Add code review to a daily check
 freview full --with security-scan         # Opt into an authorized specialist scan
 freview full --base release/next         # Explicit candidate baseline
 ```
 
-The assistant asks **one concise scope question** only when needed; if running unattended it picks standard and states what it assumed.
+By default freview runs Standard, without unnecessary questions. It asks only when a missing essential detail or permission requires a decision. Project policy may set a different default.
 
-**Important:** “full” means the widest applicable *status/evidence* audit. It does **not** silently execute expensive test suites, arbitrary repository scripts, third-party scanners or an automated code refactor. Code review and external security scans are explicit opt-ins.
+**Important:** Full includes a deep code-quality review, using a trusted installed specialist when appropriate or a bounded native review otherwise. Standard is the recommended daily check **without deep code review**. Full never silently installs tools, executes arbitrary scripts, runs expensive test suites, uploads private code, edits files or invokes external vulnerability scanners; those scanners remain opt-in.
 
 ## Modules
 
@@ -78,6 +78,30 @@ python3 skills/freview/scripts/repo_snapshot.py --base origin/dev
 ```
 
 The helper reports current Git metadata, worktrees, branch/upstream divergence, dirty state, root-level ecosystem manifests, basic community files and root npm lock alignment. It **never fetches, installs, modifies or deletes** anything. Remote GitHub data, physical QA, software behavior and uncommitted files in other worktrees still require separate evidence.
+
+## Project configuration
+
+Optionally put a validated `.freview.json` at your repository root. Declare your development/release branches, default audit mode, excluded categories, optional human QA gates, bounded audit limits and specialist preferences. The config is **data only**, never executable hooks. See [configuration](skills/freview/references/configuration.md), [JSON Schema](schemas/freview-config.schema.json) and [NMSh example](examples/nmsh.freview.json). Explicit user instructions override project preferences.
+
+## Local JSON reports and daily changes
+
+The optional no-dependency Python CLI can generate local structural metadata in JSON or Markdown:
+
+```sh
+python3 skills/freview/scripts/review.py --mode standard --format json
+python3 skills/freview/scripts/review.py --mode full --format markdown
+python3 skills/freview/scripts/report_tools.py previous.json current.json --format json
+```
+
+The CLI's report is deliberately `local-snapshot`, **not a complete agent review**. The agent produces wider evidence-backed reports following [report JSON Schema](schemas/freview-report.schema.json). An explicit `--output` can write one new file under an approved scratch directory; no files are written by default. To compare daily findings, supply two reports with compatible coverage; the validator will refuse incomparable scopes.
+
+## Optional daily automation
+
+See the [scheduled GitHub Actions template](templates/github-actions/freview-daily.yml), which is **not active** until a user deliberately copies/configures it in their own repository. It generates a local Git snapshot, not a paid AI full review. For a recurring agent-driven Standard report, configure your preferred scheduler and repository connector separately with explicit authorization. No hosted automation is silently provisioned.
+
+## Specialist delegation
+
+freview includes a curated [specialist registry](catalog/specialists.json) of possible tools (codebase-review, OpenSSF Scorecard, OSV-Scanner, CodeQL, Semgrep, Gitleaks, Markdownlint, lychee and more). The registry is *discovery metadata*, not a package installation list or executable plan. It prefers already-installed, trusted tools and uses native review when appropriate; see [specialists](skills/freview/references/specialists.md).
 
 ## Safety
 
