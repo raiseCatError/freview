@@ -38,5 +38,8 @@ jobs:
         run: python3 skills/freview/scripts/report_tools.py docs/freview-reviews-freview.json --format json > /dev/null
       - name: Exercise read-only agent discovery
         run: python3 skills/freview/scripts/agent_doctor.py --no-shell-scan --format json > /dev/null
-      - name: Check repository diff
-        run: git diff --exit-code --check
+      - name: Check repository remains clean after tests
+        run: |
+          git diff --check
+          git diff --cached --check
+          test -z "$(git status --porcelain=v1 --untracked-files=normal)"
