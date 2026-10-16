@@ -185,7 +185,7 @@ def local_change_inventory(root, max_paths=40):
     raw = git(["status", "--porcelain=v1", "-z", "--untracked-files=normal",
                "--ignore-submodules=all"], root)
     staged, unstaged, untracked = [], [], []
-    fields = raw.split(b"\\0")
+    fields = raw.split(b"\0")
     i = 0
     while i < len(fields):
         item = fields[i]
