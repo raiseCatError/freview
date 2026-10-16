@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "description": "Curation/discovery hints only. Never automatically install or execute third-party code.",
+  "tools": [
+    {
+      "id": "codebase-review",
+      "category": "code-review",
+      "repo": "https://github.com/amragl/codebase-review",
+      "kind": "agent-skill",
+      "preference": "installed-only",
+      "when": "full code-quality and architecture review",
+      "warning": "Audit exact installed version and instructions; upstream skill may offer fixes or installations that freview must explicitly suppress."
+    },
+    {
+      "id": "ossf-scorecard",
+      "category": "security-posture",
+      "repo": "https://github.com/ossf/scorecard",
+      "kind": "CLI/remote public score",
+      "preference": "reuse existing public score",
+      "when": "opt-in security supply-chain posture",
+      "warning": "Score does not prove runtime safety; hosted public score can omit checks; external scans require approval."
+    },
+    {
+      "id": "dependency-review",
+      "category": "dependencies",
+      "repo": "https://github.com/actions/dependency-review-action",
+      "kind": "GitHub Action",
+      "preference": "existing-results-only",
+      "when": "evaluate PR dependency change alerts when action already configured",
+      "warning": "Do not enable actions in a target repository automatically."
+    },
+    {
+      "id": "codeql",
+      "category": "security-scan",
+      "repo": "https://github.com/github/codeql-action",
+      "kind": "GitHub Action",
+      "preference": "existing-results-only",
+      "when": "inspect existing code-scanning results if accessible",
+      "warning": "Do not run or enable scanning without authorized scope; scanner coverage varies by language."
+    },
+    {
+      "id": "semgrep",
+      "category": "security-scan",
+      "repo": "https://github.com/semgrep/semgrep",
+      "kind": "scanner",
+      "preference": "installed-only",
+      "when": "explicit opt-in security analysis for a supported stack",
+      "warning": "Do not upload private code or enable cloud reporting without explicit authorization."
+    },
+    {
+      "id": "gitleaks",
+      "category": "security-scan",
+      "repo": "https://github.com/gitleaks/gitleaks",
+      "kind": "scanner",
+      "preference": "installed-only",
+      "when": "explicit opt-in secret-history scan",
+      "warning": "May inspect historical secrets; redact outputs and do not publish findings."
+    },
+    {
+      "id": "markdownlint-cli2",
+      "category": "docs",
+      "repo": "https://github.com/DavidAnson/markdownlint-cli2",
+      "kind": "CLI",
+      "preference": "installed-only",
+      "when": "optional Markdown style checks",
+      "warning": "Use repository's own approved configuration, do not auto-install."
+    },
+    {
+      "id": "lychee",
+      "category": "docs",
+      "repo": "https://github.com/lycheeverse/lychee",
+      "kind": "CLI",
+      "preference": "installed-only",
+      "when": "optional documentation link validation",
+      "warning": "Network requests can reveal private URLs and incur cost; require authorized network access."
+    },
+    {
+      "id": "repolinter-legacy",
+      "category": "community",
+      "repo": "https://github.com/todogroup/repolinter",
+      "kind": "archived",
+      "preference": "never default",
+      "when": "historical reference only",
+      "warning": "Archived in February 2026; do not suggest as actively maintained."
+    }
+  ]
+}
