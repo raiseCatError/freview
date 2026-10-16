@@ -4,7 +4,6 @@ import argparse
 import json
 import os
 import unicodedata
-from pathlib import Path
 import re
 import sys
 
@@ -63,16 +62,17 @@ def candidates(items, max_pairs=1000, max_comparisons=200000, stats=None):
             stats["comparisons"] += 1
             if a["id"] == b["id"] and a["kind"] == b["kind"]:
                 continue
-            # A PR explicitly implementing an issue is not a duplicated work item.
-            if ((a["kind"] == "pr" and b["kind"] == "issue" and
+            # Explicit duplicate claims win over broad non-closing Refs links.
+            explicit = ((b["kind"] == "issue" and b["id"].lstrip("#") in a["duplicate_refs"]) or
+                        (a["kind"] == "issue" and a["id"].lstrip("#") in b["duplicate_refs"]))
+            # An implementation/related PR↔issue link isn't a duplicate by title alone.
+            if not explicit and ((a["kind"] == "pr" and b["kind"] == "issue" and
                  b["id"].lstrip("#") in (a["implements_refs"] | a["related_refs"])) or
                 (b["kind"] == "pr" and a["kind"] == "issue" and
                  a["id"].lstrip("#") in (b["implements_refs"] | b["related_refs"]))):
                 continue
             intersection = len(a["t"] & b["t"])
             similarity = intersection / len(a["t"] | b["t"]) if a["t"] | b["t"] else 0
-            explicit = ((b["kind"] == "issue" and b["id"].lstrip("#") in a["duplicate_refs"]) or
-                        (a["kind"] == "issue" and a["id"].lstrip("#") in b["duplicate_refs"]))
             exact = len(a["t"]) >= 4 and a["t"] == b["t"]
             near = intersection >= 4 and similarity >= .78
             if not (explicit or exact or near):
@@ -109,11 +109,8 @@ def read_input(name):
         if hasattr(os, "O_NOFOLLOW"):
             flags |= os.O_NOFOLLOW
         fd = os.open(name, flags)
-        try:
-            with os.fdopen(fd, "rb") as stream:
-                raw = stream.read(MAX_JSON_BYTES + 1)
-        except BaseException:
-            raise
+        with os.fdopen(fd, "rb") as stream:
+            raw = stream.read(MAX_JSON_BYTES + 1)
     if len(raw) > MAX_JSON_BYTES:
         raise ValueError("Input exceeds 16 MiB")
     return json.loads(raw.decode("utf-8"))
