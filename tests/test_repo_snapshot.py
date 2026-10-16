@@ -67,6 +67,28 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(p.returncode, 2)
         self.assertIn("Explicit base ref not available", p.stderr)
 
+    def test_untrusted_fsmonitor_never_executes(self):
+        marker = Path(self.tmp.name) / "executed"
+        hook = Path(self.tmp.name) / "fsmonitor.sh"
+        hook.write_text("#!/bin/sh\nprintf 'hit' >> '" + str(marker) + "'\nexit 0\n")
+        hook.chmod(0o700)
+        run(self.root, "git", "config", "core.fsmonitor", str(hook))
+        result = self.invoke()
+        self.assertTrue(result["status"]["clean"])
+        self.assertFalse(marker.exists(), "Git fsmonitor hook was executed during read-only audit")
+
+    def test_malformed_npm_files_return_unknown_instead_of_crash(self):
+        (self.root / "package.json").write_text("[]")
+        (self.root / "package-lock.json").write_text("{}")
+        self.assertEqual(self.invoke()["npm_root_alignment"]["status"], "unknown")
+        (self.root / "package.json").write_text('{"dependencies": []}')
+        (self.root / "package-lock.json").write_text(
+            '{"lockfileVersion":3,"packages":{"":{"dependencies":{}}}}')
+        self.assertEqual(self.invoke()["npm_root_alignment"]["status"], "unknown")
+        (self.root / "package.json").write_text('{"dependencies":{}}')
+        (self.root / "package-lock.json").write_text('{"packages":{"":[]}}')
+        self.assertEqual(self.invoke()["npm_root_alignment"]["status"], "unknown")
+
     def test_npm_lock_drift(self):
         (self.root / "package.json").write_text(
             json.dumps({"dependencies": {"x": "^1.0.0"}}), encoding="utf-8")
