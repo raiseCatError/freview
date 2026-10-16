@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generator": "freview agent-assisted review (GitHub connector and source inspection)",
+  "generator": "freview agent-orchestrated Full Review (Antigravity CLI agy 1.4.0 + Gemini 3.8 Flash)",
   "report_kind": "partial-audit",
-  "timestamp_utc": "2026-10-16T20:35:00Z",
+  "timestamp_utc": "2026-10-16T21:25:00Z",
   "mode_requested": "full",
   "scope": {
     "included": [
@@ -22,18 +22,18 @@
       "security-scan"
     ],
     "specialists": {
-      "code-review": "native source inspection; no official external reviewer invoked",
-      "security-scan": "not selected"
+      "code-review": "native-read-only-bounded",
+      "security-scan": "not-selected"
     },
-    "coverage": "Entire reachable main tree, selected source/config/tests, GitHub issues/PRs/branches and exact-head CI. Local freview installation/execution and physical agent discovery not accessible."
+    "coverage": "Full-mode repository audit across Git, tracking, implementation, CI, releases, docs, community, dependencies, security-posture, accessibility, and native code review. Executed on Samsung T7 Shield external storage with Python 3.14.8 under Antigravity CLI."
   },
   "repository": {
-    "root": null,
+    "root": "/Volumes/T7Tmp/ai-dev/worktrees/freview",
     "remote": "https://github.com/raiseCatError/freview",
     "identity": "forge:github.com/raisecaterror/freview",
     "base_ref": "main",
-    "base_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
-    "head_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa"
+    "base_sha": "7e20912d068be8cc8a14f7ac64b082404fce790d",
+    "head_sha": "81411193b6d23dac74ecc5097032c622a4cf8403"
   },
   "findings": [
     {
@@ -41,23 +41,27 @@
       "severity": "P1",
       "category": "releases",
       "summary": "Scheduled consumer workflow pointed to an undocumented helper location",
-      "status": "observed",
+      "status": "resolved",
       "evidence": [
-        "The optional consumer template used .freview/tools/repo_snapshot.py, while the skill ships under skills/freview/scripts.",
+        "The optional consumer template previously used .freview/tools/repo_snapshot.py; corrected in PR #5.",
         "templates/github-actions/freview-daily.yml",
-        "skills/freview/scripts/repo_snapshot.py"
+        "Merged commit 8f60d417c13f9b2c7f1e00dcf18cf3a5fac383ae (PR #5)"
       ],
-      "next_action": "Point the template at an explicitly installed project-local .agents/skills/freview/scripts/repo_snapshot.py",
+      "next_action": "Retain consumer workflow referencing .agents/skills/freview/scripts/repo_snapshot.py",
       "remediation": {
-        "summary": "Point the template at an explicitly installed project-local .agents/skills/freview/scripts/repo_snapshot.py",
+        "summary": "Retain consumer workflow referencing .agents/skills/freview/scripts/repo_snapshot.py",
         "steps": [
-          "Point the template at an explicitly installed project-local .agents/skills/freview/scripts/repo_snapshot.py",
-          "Fail clearly when the reviewed skill is not present"
+          "Verify templates/github-actions/freview-daily.yml points to .agents/skills/freview/scripts/repo_snapshot.py",
+          "Ensure consumer workflow fails cleanly if skill is not installed"
         ],
         "verification": [
-          "Run in disposable consumer with reviewed local skill and artifact-upload default off"
+          "Executed python3 -m unittest discover -s tests -v (test_bundled_assets_match_repository_documents passed)"
         ],
         "confidence": "high",
+        "owner": "maintainer",
+        "prerequisites": [],
+        "risks": [],
+        "estimated_effort": "small",
         "requires_approval": true
       }
     },
@@ -66,22 +70,28 @@
       "severity": "P1",
       "category": "dependencies",
       "summary": "Root npm metadata followed external symlinks or could read oversized files",
-      "status": "observed",
+      "status": "resolved",
       "evidence": [
-        "Manifest and lockfile reads used is_file()/read_text() without symlink refusal or byte caps.",
-        "skills/freview/scripts/repo_snapshot.py"
+        "Manifest and lockfile reads previously used is_file()/read_text() without symlink refusal or byte caps; guarded in PR #3.",
+        "skills/freview/scripts/repo_snapshot.py",
+        "tests/test_repo_snapshot.py (test_symlinked_npm_metadata_is_not_read, test_oversized_npm_metadata_is_not_read)"
       ],
-      "next_action": "Reject symlinked root npm files and bound manifest/lock read size",
+      "next_action": "Maintain symlink refusal and 2MB/16MB byte caps on package.json/package-lock.json",
       "remediation": {
-        "summary": "Reject symlinked root npm files and bound manifest/lock read size",
+        "summary": "Maintain symlink refusal and 2MB/16MB byte caps on package.json/package-lock.json",
         "steps": [
-          "Reject symlinked root npm files and bound manifest/lock read size",
-          "Return an unverified status rather than declare clean"
+          "Preserve symlink rejection and size checks in repo_snapshot.py",
+          "Return status unknown rather than clean if files exceed bounds"
         ],
         "verification": [
-          "Regression fixtures for outside-root symlink and oversized lockfile"
+          "python3 -m unittest tests.test_repo_snapshot.SnapshotTests.test_symlinked_npm_metadata_is_not_read",
+          "python3 -m unittest tests.test_repo_snapshot.SnapshotTests.test_oversized_npm_metadata_is_not_read"
         ],
         "confidence": "high",
+        "owner": "maintainer",
+        "prerequisites": [],
+        "risks": [],
+        "estimated_effort": "small",
         "requires_approval": true
       }
     },
@@ -90,22 +100,27 @@
       "severity": "P1",
       "category": "tracking",
       "summary": "Duplicate-work candidate output was unbounded",
-      "status": "observed",
+      "status": "resolved",
       "evidence": [
-        "Pairwise title comparison could emit quadratic numbers of candidate records for near-identical titles; no code-clone detection by design.",
-        "skills/freview/scripts/duplicates.py"
+        "Pairwise title comparison could emit quadratic candidate pairs; bounded in PR #3 with --max-pairs cap and candidate_cap_reached flag.",
+        "skills/freview/scripts/duplicates.py",
+        "tests/test_duplicates.py (test_candidate_output_cap_preserves_unverified_status)"
       ],
-      "next_action": "Cap returned candidate pairs and disclose possible truncation",
+      "next_action": "Preserve default 200 pair cap and explicit candidate-unverified status",
       "remediation": {
-        "summary": "Cap returned candidate pairs and disclose possible truncation",
+        "summary": "Preserve default 200 pair cap and explicit candidate-unverified status",
         "steps": [
-          "Cap returned candidate pairs and disclose possible truncation",
-          "Keep candidates unconfirmed and no automatic issue closures"
+          "Enforce max_pairs bounded between 1 and 5000 in duplicates.py",
+          "Maintain clear disclosure when output is truncated"
         ],
         "verification": [
-          "Test high-collision input and conservative outcome"
+          "python3 -m unittest tests.test_duplicates.DuplicateTests.test_candidate_output_cap_preserves_unverified_status"
         ],
         "confidence": "high",
+        "owner": "maintainer",
+        "prerequisites": [],
+        "risks": [],
+        "estimated_effort": "small",
         "requires_approval": true
       }
     },
@@ -114,22 +129,27 @@
       "severity": "P2",
       "category": "tracking",
       "summary": "JSON report comparison could accept two reports with no repository identity",
-      "status": "observed",
+      "status": "resolved",
       "evidence": [
-        "identity(before) == identity(after) evaluates true when both are None.",
-        "skills/freview/scripts/report_tools.py"
+        "identity(before) == identity(after) evaluated true when both were None; guarded in PR #3.",
+        "skills/freview/scripts/report_tools.py",
+        "tests/test_report_tools.py (test_missing_repository_identity_never_compares_as_equal)"
       ],
-      "next_action": "Require nonempty stable identity in both reports",
+      "next_action": "Enforce non-empty stable identity check in report_tools.py",
       "remediation": {
-        "summary": "Require nonempty stable identity in both reports",
+        "summary": "Enforce non-empty stable identity check in report_tools.py",
         "steps": [
-          "Require nonempty stable identity in both reports",
-          "Continue validating base and included scope"
+          "Raise ValueError if neither report contains a stable identity string",
+          "Require matching forge identity or common gitdir"
         ],
         "verification": [
-          "Fixture with both reports lacking root, identity and remote"
+          "python3 -m unittest tests.test_report_tools.ReportTests.test_missing_repository_identity_never_compares_as_equal"
         ],
         "confidence": "high",
+        "owner": "maintainer",
+        "prerequisites": [],
+        "risks": [],
+        "estimated_effort": "small",
         "requires_approval": true
       }
     },
@@ -138,23 +158,28 @@
       "severity": "P2",
       "category": "docs",
       "summary": "Runtime project-policy bounds differed from published schema",
-      "status": "observed",
+      "status": "resolved",
       "evidence": [
-        "project_type length, categories maxItems and release branch characters were not aligned.",
+        "project_type length, categories maxItems and release branch regex were previously misaligned; synchronized in PR #3.",
         "skills/freview/scripts/review.py",
-        "schemas/freview-config.schema.json"
+        "schemas/freview-config.schema.json",
+        "tests/test_review_cli.py"
       ],
-      "next_action": "Align validators and schema copies",
+      "next_action": "Keep review.py policy validation aligned with freview-config.schema.json",
       "remediation": {
-        "summary": "Align validators and schema copies",
+        "summary": "Keep review.py policy validation aligned with freview-config.schema.json",
         "steps": [
-          "Align validators and schema copies",
-          "Retain packaging test for identical published/bundled schema"
+          "Ensure schema and code agree on constraints",
+          "Retain packaging test test_bundled_assets_match_repository_documents"
         ],
         "verification": [
-          "Config edge-case tests and Linux/macOS CI"
+          "python3 -m unittest tests.test_skill_layout.SkillLayoutTests.test_bundled_assets_match_repository_documents"
         ],
         "confidence": "high",
+        "owner": "maintainer",
+        "prerequisites": [],
+        "risks": [],
+        "estimated_effort": "small",
         "requires_approval": true
       }
     },
@@ -162,25 +187,29 @@
       "id": "FR-06",
       "severity": "P1",
       "category": "ci",
-      "summary": "Full mode still depends on unverified real-agent orchestration",
+      "summary": "Full mode physical multi-agent acceptance matrix is partially verified",
       "status": "partial",
       "evidence": [
-        "The installed helper produces a local-snapshot; full GitHub/source analysis depends on an agent. No actual Claude/Codex/OpenCode/agy install was executed in this review.",
-        "skills/freview/SKILL.md",
-        "skills/freview/scripts/review.py",
-        "tests/test_skill_layout.py"
+        "Agent doctor implemented in PR #6. Antigravity CLI (agy 1.4.0) exercised end-to-end with 65 passing tests on physical host with T7 external storage.",
+        "Claude Code, Codex, and OpenCode physical command execution remains to be run on their respective host runtimes.",
+        "Paid/hosted review plugins (Claude Code Review / OpenAI Codex PR review) remain uninvoked by policy."
       ],
-      "next_action": "Run fresh-install and Full/Standard invocation on each supported agent",
+      "next_action": "Execute physical acceptance test runs across Claude Code, Codex, and OpenCode",
       "remediation": {
-        "summary": "Run fresh-install and Full/Standard invocation on each supported agent",
+        "summary": "Execute physical acceptance test runs across Claude Code, Codex, and OpenCode",
         "steps": [
-          "Run fresh-install and Full/Standard invocation on each supported agent",
-          "Require per-category verification_manifest and downgrade incomplete runs to partial-audit"
+          "Run agent_doctor.py and review.py inside each agent's native environment",
+          "Verify per-category verification_manifest in each agent's generated report",
+          "Validate against schemas/freview-report.schema.json"
         ],
         "verification": [
-          "Actual command transcript and report validation on each target agent"
+          "Collect invocation logs, exit codes, exact commit SHAs, and JSON reports from each agent"
         ],
-        "confidence": "medium",
+        "confidence": "high",
+        "owner": "maintainer",
+        "prerequisites": [],
+        "risks": [],
+        "estimated_effort": "medium",
         "requires_approval": true
       }
     },
@@ -188,279 +217,379 @@
       "id": "FR-07",
       "severity": "P2",
       "category": "community",
-      "summary": "GitHub repository metadata and contribution templates are sparse",
+      "summary": "GitHub repository metadata and contribution templates are missing",
       "status": "observed",
       "evidence": [
-        "Repository description is empty; issue and PR templates were not present in inspected main tree.",
-        "https://github.com/raiseCatError/freview",
-        "https://github.com/raiseCatError/freview/tree/main/.github"
+        "GitHub repository description is empty on https://github.com/raiseCatError/freview.",
+        "No .github/ISSUE_TEMPLATE directory or .github/pull_request_template.md file exists in the repository tree."
       ],
-      "next_action": "Add concise GitHub description if repository editing is authorized",
+      "next_action": "Add a concise repository description and standard issue/PR templates when authorized",
       "remediation": {
-        "summary": "Add concise GitHub description if repository editing is authorized",
+        "summary": "Add a concise repository description and standard issue/PR templates when authorized",
         "steps": [
-          "Add concise GitHub description if repository editing is authorized",
-          "Consider minimal issue/PR templates only if contributions justify them"
+          "Set GitHub repository description: 'Evidence-first full repository review skill and CLI for coding agents'",
+          "Create .github/ISSUE_TEMPLATE/bug_report.md and feature_request.md",
+          "Create .github/pull_request_template.md"
         ],
         "verification": [
-          "GitHub community-file inspection"
+          "Check community profile on GitHub and verify repo_snapshot.py community check detects them"
         ],
         "confidence": "high",
+        "owner": "maintainer",
+        "prerequisites": [],
+        "risks": [],
+        "estimated_effort": "small",
         "requires_approval": true
       }
     },
     {
       "id": "FR-08",
-      "severity": "P2",
+      "severity": "informational",
       "category": "git",
-      "summary": "Merged feature branches remain listed remotely",
+      "summary": "Historical merged feature and fix branches remain on remote origin",
       "status": "observed",
       "evidence": [
-        "Historical merged feature/hardening/documentation branch heads remain present; existence is not itself a hygiene failure.",
-        "https://github.com/raiseCatError/freview/branches"
+        "8 remote branch heads remain on origin: origin/docs/freview-reviews-freview, origin/docs/full-self-review-utc-polish, origin/feat/agent-profile-doctor, origin/feat/universal-agent-skill, origin/fix/pre-v01-final-audit, origin/fix/pre-v01-hardening, origin/fix/python-isolated-smoke, and origin/main.",
+        "All 7 PRs associated with these branches have been merged into main."
       ],
-      "next_action": "Review retained branch ancestry and maintainer needs before any archive/delete decision",
+      "next_action": "Preserve branches until explicitly reviewed by maintainer; never delete branches automatically",
       "remediation": {
-        "summary": "Review retained branch ancestry and maintainer needs before any archive/delete decision",
+        "summary": "Preserve branches until explicitly reviewed by maintainer; never delete branches automatically",
         "steps": [
-          "Review retained branch ancestry and maintainer needs before any archive/delete decision"
+          "Review branch ancestry using git merge-base --is-ancestor with origin/main",
+          "Confirm no active worktrees or open references before any manual cleanup"
         ],
         "verification": [
-          "Confirm no active worktree or historical dependency before manual action"
+          "Verify all branch heads are direct ancestors of origin/main before any deletion"
         ],
         "confidence": "high",
+        "owner": "maintainer",
+        "prerequisites": [],
+        "risks": [],
+        "estimated_effort": "small",
+        "requires_approval": true
+      }
+    },
+    {
+      "id": "FR-09",
+      "severity": "P1",
+      "category": "implementation",
+      "summary": "Installed skill drift causes python3 -I outside script directory to fail with ModuleNotFoundError",
+      "status": "observed",
+      "evidence": [
+        "Skill installed in ~/.agents/skills/freview was installed at commit 7e20912d068be8cc8a14f7ac64b082404fce790d prior to PR #7.",
+        "Executing 'python3 -I ~/.agents/skills/freview/scripts/review.py --mode standard' from /Volumes/T7Tmp/ai-dev/worktrees/freview failed with exit code 1: ModuleNotFoundError: No module named 'repo_snapshot'.",
+        "Upstream main fixed this in commit 81411193b6d23dac74ecc5097032c622a4cf8403 (PR #7) using dynamic importlib.util loading, but installed skill copies have drifted."
+      ],
+      "next_action": "Update installed skill in ~/.agents/skills/freview to include PR #7 changes",
+      "remediation": {
+        "summary": "Update installed skill in ~/.agents/skills/freview to include PR #7 changes",
+        "steps": [
+          "Sync ~/.agents/skills/freview with skills/freview from commit 81411193b6d23dac74ecc5097032c622a4cf8403",
+          "Verify python3 -I execution from arbitrary directories succeeds"
+        ],
+        "verification": [
+          "Run 'python3 -I ~/.agents/skills/freview/scripts/review.py --mode standard' from /tmp or /Volumes/T7Tmp/ai-dev and confirm exit 0"
+        ],
+        "confidence": "high",
+        "owner": "maintainer",
+        "prerequisites": [],
+        "risks": [],
+        "estimated_effort": "small",
+        "requires_approval": true
+      }
+    },
+    {
+      "id": "FR-10",
+      "severity": "P1",
+      "category": "docs",
+      "summary": "Antigravity CLI skill discovery path in agent_doctor and documentation targets non-discovered directory",
+      "status": "observed",
+      "evidence": [
+        "agent_doctor.py (line 149) and references/agent-discovery.md specify ~/.gemini/antigravity-cli/skills/freview for Antigravity CLI (agy).",
+        "In Antigravity CLI 1.4.0, startup skill discovery scans {workspace}/.agents/skills/ and global config in ~/.gemini/config/, while ~/.gemini/antigravity-cli/skills/ is ignored during prompt skill injection.",
+        "agent_doctor reported freview_visible_on_disk: true for agy, but agy did not activate the skill automatically in its /skills prompt."
+      ],
+      "next_action": "Update agent_doctor.py and references/agent-discovery.md to document {workspace}/.agents/skills/ and ~/.gemini/config/",
+      "remediation": {
+        "summary": "Update agent_doctor.py and references/agent-discovery.md to document {workspace}/.agents/skills/ and ~/.gemini/config/",
+        "steps": [
+          "Add ~/.gemini/config/skills/freview to agy search locations in agent_doctor.py",
+          "Clarify in agent-discovery.md that agy requires project-local .agents/skills/freview or global config mounting",
+          "Add regression test in test_agent_doctor.py"
+        ],
+        "verification": [
+          "Run python3 -m unittest tests.test_agent_doctor",
+          "Verify agent_doctor output for agy reflects accurate loader paths"
+        ],
+        "confidence": "high",
+        "owner": "maintainer",
+        "prerequisites": [],
+        "risks": [],
+        "estimated_effort": "small",
+        "requires_approval": true
+      }
+    },
+    {
+      "id": "FR-11",
+      "severity": "P2",
+      "category": "docs",
+      "summary": "agent_doctor reports executable as null for aliases even when underlying command exists in PATH",
+      "status": "observed",
+      "evidence": [
+        "In agent_doctor.py line 207: 'executable': shutil.which(cmd['agent']) if cmd['kind'] == 'default' else None.",
+        "When claude is defined as an alias in ~/.zshrc, cmd['kind'] is 'alias', resulting in 'executable': null even though the binary may be present in PATH."
+      ],
+      "next_action": "Check shutil.which for aliased agent commands or parse first token of alias body",
+      "remediation": {
+        "summary": "Check shutil.which for aliased agent commands or parse first token of alias body",
+        "steps": [
+          "In agent_doctor.py, allow falling back to shutil.which(cmd['agent']) for aliases when kind != 'default'",
+          "Optionally resolve the command binary without executing shell syntax"
+        ],
+        "verification": [
+          "Run python3 -m unittest tests.test_agent_doctor"
+        ],
+        "confidence": "high",
+        "owner": "maintainer",
+        "prerequisites": [],
+        "risks": [],
+        "estimated_effort": "small",
         "requires_approval": true
       }
     }
   ],
   "not_observed": [
-    "No local GitHub checkout available in runtime (network clone DNS failed); actual skill CLI and its fixture suite were not directly executed during this review.",
-    "Installed Claude Code, Codex, OpenCode and Antigravity CLI skill discovery and official code-review integration not executed.",
-    "Branch cleanliness/worktrees on maintainer machine, GitHub branch protection policies, user secrets and any unpublished local work not observed.",
-    "Security scan not selected; repository helper is not an operating-system sandbox.",
-    "New fix PR CI must be verified at its own exact SHA; previous main CI does not prove new changes."
-  ],
-  "verification_manifest": [
-    {
-      "category": "git",
-      "status": "partial",
-      "evidence": [
-        "https://github.com/raiseCatError/freview/branches",
-        "https://github.com/raiseCatError/freview/pulls"
-      ],
-      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
-      "tool": "GitHub connector",
-      "tool_version": null
-    },
-    {
-      "category": "tracking",
-      "status": "verified",
-      "evidence": [
-        "https://github.com/raiseCatError/freview/pulls",
-        "https://github.com/raiseCatError/freview/issues"
-      ],
-      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
-      "tool": "GitHub connector",
-      "tool_version": null
-    },
-    {
-      "category": "implementation",
-      "status": "partial",
-      "evidence": [
-        "skills/freview/SKILL.md",
-        "skills/freview/scripts/review.py",
-        "tests/test_review_cli.py"
-      ],
-      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
-      "tool": "Native code inspection",
-      "tool_version": null
-    },
-    {
-      "category": "ci",
-      "status": "verified",
-      "evidence": [
-        "https://github.com/raiseCatError/freview/actions/runs/38961320971"
-      ],
-      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
-      "tool": "GitHub Actions",
-      "tool_version": null
-    },
-    {
-      "category": "releases",
-      "status": "verified",
-      "evidence": [
-        "https://github.com/raiseCatError/freview/releases"
-      ],
-      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
-      "tool": "GitHub connector",
-      "tool_version": null
-    },
-    {
-      "category": "docs",
-      "status": "verified",
-      "evidence": [
-        "README.md",
-        "docs/freview-reviews-freview.md",
-        "skills/freview/references/automation.md"
-      ],
-      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
-      "tool": "Native document inspection",
-      "tool_version": null
-    },
-    {
-      "category": "community",
-      "status": "verified",
-      "evidence": [
-        "README.md",
-        "SECURITY.md",
-        "CONTRIBUTING.md",
-        "CODE_OF_CONDUCT.md",
-        ".github/ACCESSIBILITY.md"
-      ],
-      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
-      "tool": "Repository tree inspection",
-      "tool_version": null
-    },
-    {
-      "category": "dependencies",
-      "status": "partial",
-      "evidence": [
-        "skills/freview/scripts/repo_snapshot.py",
-        "GitHub tree: no root third-party dependency manifest"
-      ],
-      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
-      "tool": "Manifest/source inspection",
-      "tool_version": null
-    },
-    {
-      "category": "security-posture",
-      "status": "partial",
-      "evidence": [
-        "SECURITY.md",
-        "skills/freview/scripts/repo_snapshot.py",
-        ".github/workflows/checks.yml"
-      ],
-      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
-      "tool": "Native source/config inspection",
-      "tool_version": null
-    },
-    {
-      "category": "accessibility",
-      "status": "partial",
-      "evidence": [
-        ".github/ACCESSIBILITY.md",
-        "README.md"
-      ],
-      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
-      "tool": "Documentation inspection",
-      "tool_version": null
-    },
-    {
-      "category": "code-review",
-      "status": "partial",
-      "evidence": [
-        "skills/freview/scripts/repo_snapshot.py",
-        "skills/freview/scripts/review.py",
-        "skills/freview/scripts/report_tools.py",
-        "skills/freview/scripts/duplicates.py"
-      ],
-      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
-      "tool": "Native source review; official plugin not invoked",
-      "tool_version": null
-    }
+    "External third-party paid code review tools (Anthropic Claude Code Review plugin, OpenAI Codex PR review) were not invoked or billed.",
+    "Physical multi-agent interactive test sessions on Claude Code, Codex, and OpenCode runtimes were not executed from this Antigravity session.",
+    "Physical hardware/screen reader accessibility testing was not performed; documentary and structural accessibility guidelines were inspected.",
+    "External vulnerability scanners (OSV-Scanner, Gitleaks, Semgrep) were excluded by default; repository security posture was inspected.",
+    "GitHub branch protection rules and private security advisory dashboards are not observable via public API tokens."
   ],
   "duplicate_clusters": [],
   "remediation_plan": [
     {
       "finding_ids": [
-        "FR-01"
+        "FR-09"
       ],
-      "action": "Point the template at an explicitly installed project-local .agents/skills/freview/scripts/repo_snapshot.py; Fail clearly when the reviewed skill is not present",
+      "action": "Sync ~/.agents/skills/freview with repository main (PR #7) to fix python3 -I ModuleNotFoundError",
       "priority": "P1",
+      "prerequisites": [],
       "verification": [
-        "Run in disposable consumer with reviewed local skill and artifact-upload default off"
+        "Run python3 -I ~/.agents/skills/freview/scripts/review.py --mode standard from external directory and confirm exit 0"
       ],
+      "owner": "maintainer",
       "requires_approval": true
     },
     {
       "finding_ids": [
-        "FR-02"
+        "FR-10"
       ],
-      "action": "Reject symlinked root npm files and bound manifest/lock read size; Return an unverified status rather than declare clean",
+      "action": "Update agent_doctor.py and references/agent-discovery.md for accurate Antigravity CLI discovery paths",
       "priority": "P1",
+      "prerequisites": [],
       "verification": [
-        "Regression fixtures for outside-root symlink and oversized lockfile"
+        "python3 -m unittest tests.test_agent_doctor",
+        "Validate agent_doctor.py --format json against agy installation"
       ],
-      "requires_approval": true
-    },
-    {
-      "finding_ids": [
-        "FR-03"
-      ],
-      "action": "Cap returned candidate pairs and disclose possible truncation; Keep candidates unconfirmed and no automatic issue closures",
-      "priority": "P1",
-      "verification": [
-        "Test high-collision input and conservative outcome"
-      ],
-      "requires_approval": true
-    },
-    {
-      "finding_ids": [
-        "FR-04"
-      ],
-      "action": "Require nonempty stable identity in both reports; Continue validating base and included scope",
-      "priority": "P2",
-      "verification": [
-        "Fixture with both reports lacking root, identity and remote"
-      ],
-      "requires_approval": true
-    },
-    {
-      "finding_ids": [
-        "FR-05"
-      ],
-      "action": "Align validators and schema copies; Retain packaging test for identical published/bundled schema",
-      "priority": "P2",
-      "verification": [
-        "Config edge-case tests and Linux/macOS CI"
-      ],
+      "owner": "maintainer",
       "requires_approval": true
     },
     {
       "finding_ids": [
         "FR-06"
       ],
-      "action": "Run fresh-install and Full/Standard invocation on each supported agent; Require per-category verification_manifest and downgrade incomplete runs to partial-audit",
+      "action": "Complete physical multi-agent acceptance tests across Claude Code, Codex, and OpenCode",
       "priority": "P1",
-      "verification": [
-        "Actual command transcript and report validation on each target agent"
+      "prerequisites": [
+        "FR-09",
+        "FR-10"
       ],
+      "verification": [
+        "Run review.py and agent_doctor.py inside each agent runtime and collect validation evidence"
+      ],
+      "owner": "maintainer",
+      "requires_approval": true
+    },
+    {
+      "finding_ids": [
+        "FR-11"
+      ],
+      "action": "Improve agent_doctor executable detection for alias-wrapped launchers",
+      "priority": "P2",
+      "prerequisites": [],
+      "verification": [
+        "python3 -m unittest tests.test_agent_doctor"
+      ],
+      "owner": "maintainer",
       "requires_approval": true
     },
     {
       "finding_ids": [
         "FR-07"
       ],
-      "action": "Add concise GitHub description if repository editing is authorized; Consider minimal issue/PR templates only if contributions justify them",
+      "action": "Add GitHub repository description and issue/PR templates",
       "priority": "P2",
+      "prerequisites": [],
       "verification": [
-        "GitHub community-file inspection"
+        "Verify .github/ISSUE_TEMPLATE and pull_request_template.md presence with repo_snapshot.py"
       ],
+      "owner": "maintainer",
       "requires_approval": true
     },
     {
       "finding_ids": [
         "FR-08"
       ],
-      "action": "Review retained branch ancestry and maintainer needs before any archive/delete decision",
-      "priority": "P2",
+      "action": "Maintain historical merged branch heads until explicit maintainer deletion approval",
+      "priority": "informational",
+      "prerequisites": [],
       "verification": [
-        "Confirm no active worktree or historical dependency before manual action"
+        "Confirm no unmerged commits or active worktrees before any branch pruning"
       ],
+      "owner": "maintainer",
       "requires_approval": true
     }
   ],
-  "implementation_suggestions_requested": false,
+  "verification_manifest": [
+    {
+      "category": "git",
+      "status": "verified",
+      "evidence": [
+        "git status --porcelain=v2 --branch (worktree clean)",
+        "git log -1 --stat (HEAD commit 81411193b6d23dac74ecc5097032c622a4cf8403)",
+        "git branch -a (8 remote branches inspected; ancestry verified against main)",
+        "repo_snapshot.py executed on /Volumes/T7Tmp/ai-dev/worktrees/freview"
+      ],
+      "ref_sha": "81411193b6d23dac74ecc5097032c622a4cf8403",
+      "tool": "git / repo_snapshot.py",
+      "tool_version": "2.48.1 / freview-local 1"
+    },
+    {
+      "category": "tracking",
+      "status": "verified",
+      "evidence": [
+        "gh issue list --repo raiseCatError/freview --state all (0 issues)",
+        "gh pr list --repo raiseCatError/freview --state all (7 merged PRs: #1, #2, #3, #4, #5, #6, #7)",
+        "duplicates.py executed over all 7 PR records (0 false duplicate pairs reported)",
+        "test_duplicates.py (8 test cases passed)"
+      ],
+      "ref_sha": "81411193b6d23dac74ecc5097032c622a4cf8403",
+      "tool": "gh CLI / duplicates.py",
+      "tool_version": "2.68.0 / freview-local 1"
+    },
+    {
+      "category": "implementation",
+      "status": "verified",
+      "evidence": [
+        "python3 -m py_compile skills/freview/scripts/*.py tests/*.py (all files compiled with 0 errors)",
+        "python3 -m unittest discover -s tests -v (65 tests ran in 20.437s, all OK)",
+        "Tested python3 -I execution on repo_snapshot.py, review.py, report_tools.py, duplicates.py, agent_doctor.py",
+        "Discovered installed skill drift in ~/.agents/skills/freview regarding Python -I support"
+      ],
+      "ref_sha": "81411193b6d23dac74ecc5097032c622a4cf8403",
+      "tool": "python3 / unittest",
+      "tool_version": "Python 3.14.8"
+    },
+    {
+      "category": "ci",
+      "status": "verified",
+      "evidence": [
+        "gh run list --repo raiseCatError/freview (run 38968225970 on 8141119 succeeded; run 38966870820 on 7e20912 succeeded)",
+        "Workflow .github/workflows/checks.yml validates macOS and Ubuntu across Python versions with -I isolation",
+        "Local test suite executed 65 unit tests on macOS with 100% pass rate"
+      ],
+      "ref_sha": "81411193b6d23dac74ecc5097032c622a4cf8403",
+      "tool": "GitHub Actions / gh CLI",
+      "tool_version": "gh 2.68.0"
+    },
+    {
+      "category": "releases",
+      "status": "verified",
+      "evidence": [
+        "gh release list --repo raiseCatError/freview (0 releases returned; project is pre-v0.1.0 unreleased)",
+        "git tag -l / gh api repos/raiseCatError/freview/tags (0 tags returned)",
+        "templates/github-actions/freview-daily.yml inspected and verified"
+      ],
+      "ref_sha": "81411193b6d23dac74ecc5097032c622a4cf8403",
+      "tool": "git / gh CLI",
+      "tool_version": "gh 2.68.0"
+    },
+    {
+      "category": "docs",
+      "status": "verified",
+      "evidence": [
+        "README.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, SUPPORT.md inspected",
+        "All 12 references in skills/freview/references/ verified for existence and content integrity",
+        "test_references_and_helper_are_bundled passed",
+        "test_bundled_assets_match_repository_documents passed"
+      ],
+      "ref_sha": "81411193b6d23dac74ecc5097032c622a4cf8403",
+      "tool": "python3 / unittest",
+      "tool_version": "Python 3.14.8"
+    },
+    {
+      "category": "community",
+      "status": "verified",
+      "evidence": [
+        "repo_snapshot.py community checks: readme=True, license=True, contributing=True, code_of_conduct=True, security=True, support=True, accessibility=True",
+        "Identified missing .github/ISSUE_TEMPLATE and PR templates (FR-07)",
+        "LICENSE (MIT) and CODE_OF_CONDUCT.md (Contributor Covenant 2.1) verified"
+      ],
+      "ref_sha": "81411193b6d23dac74ecc5097032c622a4cf8403",
+      "tool": "repo_snapshot.py",
+      "tool_version": "freview-local 1"
+    },
+    {
+      "category": "dependencies",
+      "status": "verified",
+      "evidence": [
+        "Verified 0 external third-party Python runtime packages used by freview scripts",
+        "All scripts rely strictly on Python 3 standard library (argparse, json, subprocess, pathlib, etc.)",
+        "Tested npm_root_alignment on raiseCatError/notMyShell (aligned, lockfile v3, 0 drift)"
+      ],
+      "ref_sha": "81411193b6d23dac74ecc5097032c622a4cf8403",
+      "tool": "repo_snapshot.py",
+      "tool_version": "freview-local 1"
+    },
+    {
+      "category": "security-posture",
+      "status": "verified",
+      "evidence": [
+        "SECURITY.md policy and disclosure email verified",
+        "repo_snapshot.py Git security boundaries verified: GIT_* environment scrubbing, fsmonitor=false, hooksPath=/dev/null, diff.external= disabled, clean/process/smudge filter neutralization",
+        "test_untrusted_fsmonitor_never_executes and test_untrusted_clean_filter_cannot_execute_during_diff passed",
+        "review.py report output enforces O_NOFOLLOW and 0o600 file permissions"
+      ],
+      "ref_sha": "81411193b6d23dac74ecc5097032c622a4cf8403",
+      "tool": "python3 / unittest",
+      "tool_version": "Python 3.14.8"
+    },
+    {
+      "category": "accessibility",
+      "status": "partial",
+      "evidence": [
+        "docs/ACCESSIBILITY.md inspected: keyboard navigation, plain-text output, high-contrast terminal support documented",
+        "Terminal output formatting verified to use clean text without hardcoded unreadable ANSI palette escapes",
+        "Physical screen reader testing on macOS VoiceOver was not conducted during this automated audit session"
+      ],
+      "ref_sha": "81411193b6d23dac74ecc5097032c622a4cf8403",
+      "tool": "manual inspection",
+      "tool_version": null
+    },
+    {
+      "category": "code-review",
+      "status": "verified",
+      "evidence": [
+        "Native bounded read-only code review conducted across all 5 Python scripts, 6 unit test modules, 2 JSON schemas, and 12 documentation references",
+        "Identified new findings FR-09 (installed skill drift under python -I), FR-10 (Antigravity CLI discovery path mismatch), and FR-11 (agent_doctor executable lookup for aliases)",
+        "Specialist catalog (assets/catalog/specialists.json) verified: test_specialist_catalog_has_only_vetted_tools passed with >=1000 stars threshold"
+      ],
+      "ref_sha": "81411193b6d23dac74ecc5097032c622a4cf8403",
+      "tool": "freview agent native reviewer",
+      "tool_version": "Antigravity CLI 1.4.0 (Gemini 3.8 Flash)"
+    }
+  ],
   "human_review_required": true,
-  "reference_report": null
+  "implementation_suggestions_requested": false
 }
