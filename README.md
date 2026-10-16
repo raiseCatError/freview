@@ -126,6 +126,12 @@ The helper reports current Git metadata, worktrees, branch/upstream divergence, 
 
 Optionally put a validated `.freview.json` at your repository root. Declare your development/release branches, default audit mode, excluded categories, optional human QA gates, bounded audit limits and specialist preferences. The config is **data only**, never executable hooks. See [configuration](skills/freview/references/configuration.md), [JSON Schema](schemas/freview-config.schema.json) and [NMSh example](examples/nmsh.freview.json). Explicit user instructions override project preferences.
 
+## Report semantics and installation checks
+
+Report comparisons now call missing findings `absent_from_new_report` rather than `resolved`. Absence of a finding **does not prove remediation**; verify actual source and CI evidence against exact refs. JSON schema validation checks structure, **not whether a tool really ran**. The report loader bounds reads before parsing and checks timestamps are UTC. Private paths and branch names remain possible in reports; review documents before publication.
+
+The agent installation doctor now checks all bundled references, helpers and template files and examines both documented Antigravity global directories. On aliases it may show `underlying_binary_guess` but **cannot confirm that the wrapper executed that binary**.
+
 ## Local JSON reports and daily changes
 
 The optional no-dependency Python CLI can generate local structural metadata in JSON or Markdown:
