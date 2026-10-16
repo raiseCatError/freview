@@ -48,12 +48,12 @@ def candidates(items, max_pairs=1000, max_comparisons=200000, stats=None):
                      "t": tokens(title),
                      "duplicate_refs": set(re.findall(r"(?:duplicate|dupe)\s+of\s+#(\d+)",
                                                       body.lower())),
-                     "implements_refs": set(re.findall(r"(?i)\\b(?:closes|fixes|resolves)\\s+#(\\d+)\\b", body)),
+                     "implements_refs": set(re.findall(r"(?i)\b(?:closes|fixes|resolves)\s+#(\d+)\b", body)),
                      # Non-closing relationships aren't necessarily implementations:
                      # they are related work, and shouldn't be called duplicates
                      # solely because they have similar titles.
                      "related_refs": set(re.findall(
-                         r"(?i)\\b(?:refs?|references?)\\s*:?[ ]*#(\\d+)\\b", body))})
+                         r"(?i)\b(?:refs?|references?)\s*:?[ ]*#(\d+)\b", body))})
     output = []
     for i, a in enumerate(rows):
         for b in rows[i + 1:]:
