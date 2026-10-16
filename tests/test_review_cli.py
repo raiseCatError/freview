@@ -61,6 +61,8 @@ class ReviewCLITests(unittest.TestCase):
         self.assertEqual(report["mode_requested"], "full")
         self.assertNotIn("code-review", report["scope"]["included"])
         self.assertNotIn("ci", report["scope"]["included"])
+        report = self.report("--mode", "full")
+        self.assertIn("code-review", report["scope"]["included"])
         report = self.report("--mode", "standard", "--with", "code-review")
         self.assertEqual(report["mode_requested"], "standard")
         self.assertIn("code-review", report["scope"]["included"])
