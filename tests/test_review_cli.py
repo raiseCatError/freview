@@ -183,6 +183,17 @@ class ReviewCLITests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(outfile.stat().st_mode), 0o600)
         self.assertEqual(self.call("--output", str(outfile), ok=False).returncode, 2)
 
+    def test_only_git_skips_dependency_and_community_file_inspection(self):
+        (self.root / "package.json").write_text('{"dependencies":{"x":"1"}}')
+        (self.root / "package-lock.json").write_text('{"packages":{"":{"dependencies":{"x":"2"}}}}')
+        git_only = self.report("--only", "git")
+        self.assertEqual(git_only["scope"]["included"], ["git"])
+        self.assertTrue(git_only["local_snapshot"]["npm_root_alignment"]["not_checked"])
+        self.assertEqual(git_only["local_snapshot"]["ecosystems_root_only"], {})
+        self.assertEqual(git_only["local_snapshot"]["community"], {})
+        with_deps = self.report("--only", "dependencies")
+        self.assertEqual(with_deps["local_snapshot"]["npm_root_alignment"]["status"], "drift")
+
     def test_unknown_category_refuses(self):
         self.assertEqual(self.call("--exclude", "wizardry", ok=False).returncode, 2)
 
