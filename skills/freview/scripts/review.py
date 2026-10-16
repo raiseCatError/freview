@@ -152,7 +152,8 @@ def create_report(args):
     cfg = load_policy(cfgpath) if cfgpath.exists() or args.config else {}
     mode, included, excluded = scope(args, cfg)
     base = args.base or cfg.get("repository", {}).get("development_branch")
-    snap = snapshot(base, cfg.get("limits", {}).get("max_branches", 200))
+    snap = snapshot(base, cfg.get("limits", {}).get("max_branches", 200),
+                    categories=included)
     findings = []
     if not snap["status"]["clean"] and "git" in included:
         findings.append({
