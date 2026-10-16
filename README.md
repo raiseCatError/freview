@@ -1,5 +1,7 @@
 # freview
 
+**Full Review**, pronounced **“f-review”** (the letter **F**, then *review*). Not “free-view” or “fre-view”.
+
 **Full repository review, without guessing what “done” means.**
 
 freview is a portable, evidence-first [Agent Skill](https://agentskills.io/) for assessing the *actual state* of a repository. It discovers how the project works before examining its Git history, worktrees, issues/PRs, implementation reachability, exact-commit CI, release process, documentation, community standards, dependencies and accessibility. It can optionally coordinate specialist code-quality and security reviews, **without copying their functionality**.
