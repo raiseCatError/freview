@@ -34,6 +34,14 @@ class DuplicateTests(unittest.TestCase):
              {"id": 22, "kind": "pr", "title": "Implement queue history", "body": "Closes #10"}]
         self.assertEqual(MOD.candidates(x), [])
 
+    def test_exact_title_but_pr_closes_issue_is_not_duplicate(self):
+        title = "Restore queue output history from persistent session"
+        items = [
+            {"id": 73, "kind": "issue", "title": title},
+            {"id": 95, "kind": "pr", "title": title, "body": "Closes #73"},
+        ]
+        self.assertEqual(MOD.candidates(items), [])
+
     def test_similar_but_distinct_tasks_not_duplicate(self):
         x = [{"id": 1, "title": "Add macOS terminal fullscreen clipboard test"},
              {"id": 2, "title": "Add Linux terminal fullscreen keyboard test"}]
