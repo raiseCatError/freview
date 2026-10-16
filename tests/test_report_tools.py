@@ -107,6 +107,15 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(result["new"][0]["id"], "b")
         self.assertEqual(result["resolved"][0]["id"], "a")
 
+    def test_missing_repository_identity_never_compares_as_equal(self):
+        left = sample()
+        right = sample()
+        for report in (left, right):
+            report["repository"] = {"root": None, "remote": None}
+        self.assertEqual(self.invoke(
+            self.write("left.json", left), self.write("right.json", right),
+            ok=False).returncode, 2)
+
     def test_report_scope_baseline_changes_are_not_comparable(self):
         old = sample()
         new = sample()
