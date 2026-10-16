@@ -26,7 +26,26 @@ class SkillLayoutTests(unittest.TestCase):
         for ref in references:
             with self.subTest(ref=ref):
                 self.assertTrue((SKILL_DIR / ref).is_file())
-        self.assertTrue((SKILL_DIR / "scripts/repo_snapshot.py").is_file())
+        for tool in ("repo_snapshot.py", "review.py", "report_tools.py"):
+            self.assertTrue((SKILL_DIR / "scripts" / tool).is_file())
+        for asset in ("assets/schemas/freview-config.schema.json",
+                      "assets/schemas/freview-report.schema.json",
+                      "assets/catalog/specialists.json",
+                      "assets/templates/github-actions/freview-daily.yml"):
+            self.assertTrue((SKILL_DIR / asset).is_file())
+
+    def test_bundled_assets_match_repository_documents(self):
+        for package_path, source_path in (
+            ("assets/schemas/freview-config.schema.json", "schemas/freview-config.schema.json"),
+            ("assets/schemas/freview-report.schema.json", "schemas/freview-report.schema.json"),
+            ("assets/catalog/specialists.json", "catalog/specialists.json"),
+            ("assets/templates/github-actions/freview-daily.yml",
+             "templates/github-actions/freview-daily.yml"),
+        ):
+            with self.subTest(package_path=package_path):
+                self.assertEqual((SKILL_DIR / package_path).read_bytes(),
+                                 (ROOT / source_path).read_bytes())
+
 
     def test_no_project_specific_policy_embedded(self):
         skill = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
