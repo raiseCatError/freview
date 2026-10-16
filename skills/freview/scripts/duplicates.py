@@ -63,8 +63,10 @@ def candidates(items, max_pairs=1000, max_comparisons=200000, stats=None):
             if a["id"] == b["id"] and a["kind"] == b["kind"]:
                 continue
             # Explicit duplicate claims win over broad non-closing Refs links.
-            explicit = ((b["kind"] == "issue" and b["id"].lstrip("#") in a["duplicate_refs"]) or
-                        (a["kind"] == "issue" and a["id"].lstrip("#") in b["duplicate_refs"]))
+            # Issues and PRs share a forge number namespace. Either may explicitly
+            # identify the other as a duplicate; preserve this as a *candidate*.
+            explicit = (b["id"].lstrip("#") in a["duplicate_refs"] or
+                        a["id"].lstrip("#") in b["duplicate_refs"])
             # An implementation/related PR↔issue link isn't a duplicate by title alone.
             if not explicit and ((a["kind"] == "pr" and b["kind"] == "issue" and
                  b["id"].lstrip("#") in (a["implements_refs"] | a["related_refs"])) or
