@@ -32,7 +32,7 @@ Never say “repository is completely clean” from incomplete evidence. Say “
 
 ## Versioned JSON and daily deltas
 
-The portable [report.schema.json](../../../schemas/freview-report.schema.json) defines report envelope, exact SHA/source scope, category coverage, evidence-linked findings, severity separate from lifecycle status, and explicit unobserved facts. Agent-generated reports must distinguish `report_kind=full-audit`, `partial-audit` and `local-snapshot`. The companion helper always emits `local-snapshot`; only the actual agent investigation can justify a wider audit.
+The portable [report.schema.json](../assets/schemas/freview-report.schema.json) defines report envelope, exact SHA/source scope, category coverage, evidence-linked findings, severity separate from lifecycle status, and explicit unobserved facts. Agent-generated reports must distinguish `report_kind=full-audit`, `partial-audit` and `local-snapshot`. The companion helper always emits `local-snapshot`; only the actual agent investigation can justify a wider audit.
 
 Use `python3 <installed-skill>/scripts/review.py --mode standard --format json` to generate a local snapshot to stdout. Pass an explicit `--output /approved/scratch/report.json` to write one new report file; the command never overwrites existing files or creates directories.
 
