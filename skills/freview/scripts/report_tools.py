@@ -130,6 +130,25 @@ def load(path):
             if (not isinstance(group, dict) or
                     group.get("status") not in ("confirmed", "candidate", "related", "not-duplicate")):
                 raise ValueError("Invalid duplicate cluster")
+    if report["report_kind"] in ("partial-audit", "full-audit"):
+        manifest = report["verification_manifest"]
+        recorded = {}
+        for entry in manifest:
+            category = entry["category"]
+            if category in recorded:
+                raise ValueError("Duplicate evidence category: " + category)
+            recorded[category] = entry
+            if entry["status"] in ("verified", "not-applicable") and not entry["evidence"]:
+                raise ValueError("Completed checks require evidence/reason: " + category)
+        included = set(scope["included"])
+        if not included <= recorded.keys():
+            raise ValueError("Selected audit categories missing evidence manifest")
+        if report["report_kind"] == "full-audit":
+            for category in included:
+                if recorded[category]["status"] not in ("verified", "not-applicable"):
+                    raise ValueError("Cannot claim full-audit with incomplete " + category)
+            if "code-review" in included and recorded["code-review"]["status"] != "verified":
+                raise ValueError("Full code review must be evidenced, not skipped")
     findings = report["findings"]
     if not isinstance(findings, list):
         raise ValueError("Findings must be an array")
