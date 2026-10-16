@@ -33,7 +33,8 @@
           "items": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\x00-\\x1F\\x7F]+$"
           }
         }
       }
@@ -54,14 +55,16 @@
           "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/category"
-          }
+          },
+          "maxItems": 12
         },
         "exclude": {
           "type": "array",
           "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/category"
-          }
+          },
+          "maxItems": 12
         }
       }
     },
