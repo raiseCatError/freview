@@ -5,11 +5,11 @@
 | Mode | Purpose | Enumeration | Depth |
 |---|---|---|---|
 | quick | 1-minute-style orientation; major red flags | small bounded sample, always state limits | metadata and obvious conflicts |
-| standard (default) | credible release/repository health | relevant open issues, PRs and recent closed samples | critical paths and exact-SHA examples |
+| standard (default) | daily health without source-code inspection | relevant issues, PRs, exact-SHA CI and recent closed samples | metadata and existing receipts; code/feature behavior remains unverified |
 | full | comprehensive evidence review | paginate all accessible scoped records | trace material acceptance and CI, never unbounded execution |
 | targeted | selected categories/refs/issues | only requested scope | enough to substantiate claim |
 
-“Full” covers all **applicable structural checks**: git, tracking, implementation, CI, releases, docs, community, dependencies, security-posture, accessibility. It **includes** deep code review by default, preferring an installed trusted specialist and otherwise a bounded native code review. It never automatically installs a skill/tool, runs high-risk scans or uploads source. External vulnerability/security scans still require `--with security-scan`, and exclusions take precedence over mode defaults. In quick, report partial remote coverage rather than describing a truncated result as the total backlog.
+“Full” covers all **applicable structural checks** plus source-level implementation tracing and quality review: git, tracking, implementation, CI, releases, docs, community, dependencies, security-posture, accessibility. It **includes** deep code review by default, preferring an installed trusted specialist and otherwise a bounded native code review. It never automatically installs a skill/tool, runs high-risk scans or uploads source. External vulnerability/security scans still require `--with security-scan`, and exclusions take precedence over mode defaults. In quick, report partial remote coverage rather than describing a truncated result as the total backlog.
 
 Category aliases in natural language: `git` includes worktrees and ancestry; `tracking` includes issues, milestones and PRs; `implementation` traces feature reachability and tests; `docs` checks release and help accuracy; `community` includes contributor/onboarding standards; `dependencies` includes manifests, lockfiles and dependency graph; `security-posture` is documentary/configuration evidence, not a vulnerability verdict.
 
