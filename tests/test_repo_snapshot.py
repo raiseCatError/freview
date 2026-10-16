@@ -60,12 +60,62 @@ class SnapshotTests(unittest.TestCase):
         self.assertTrue(any(b["name"] == "feature/example" and b["worktrees"]
                             for b in result["branches"]))
 
+    def test_git_common_dir_identity_is_shared_between_worktrees(self):
+        other = Path(self.tmp.name) / "sibling"
+        run(self.root, "git", "worktree", "add", "-qb", "feature/sibling", str(other))
+        first = self.invoke()
+        p = subprocess.run([sys.executable, str(SCRIPT), "--json"], cwd=other,
+                           text=True, capture_output=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        sibling = json.loads(p.stdout)
+        self.assertEqual(first["repo_identity"], sibling["repo_identity"])
+        self.assertNotEqual(first["root"], sibling["root"])
+
     def test_explicit_missing_base_fails_without_fallback(self):
         p = subprocess.run([sys.executable, str(SCRIPT), "--json",
                             "--base", "definitely-not-a-ref"],
                            cwd=self.root, text=True, capture_output=True)
         self.assertEqual(p.returncode, 2)
         self.assertIn("Explicit base ref not available", p.stderr)
+
+    def test_untrusted_fsmonitor_never_executes(self):
+        marker = Path(self.tmp.name) / "executed"
+        hook = Path(self.tmp.name) / "fsmonitor.sh"
+        hook.write_text("#!/bin/sh\nprintf 'hit' >> '" + str(marker) + "'\nexit 0\n")
+        hook.chmod(0o700)
+        run(self.root, "git", "config", "core.fsmonitor", str(hook))
+        result = self.invoke()
+        self.assertTrue(result["status"]["clean"])
+        self.assertFalse(marker.exists(), "Git fsmonitor hook was executed during read-only audit")
+
+    def test_untrusted_clean_filter_cannot_execute_during_diff(self):
+        marker = Path(self.tmp.name) / "executed-clean-filter"
+        filter_program = Path(self.tmp.name) / "filter.sh"
+        filter_program.write_text(
+            "#!/bin/sh\nprintf 'hit' >> '" + str(marker) + "'\ncat\n"
+        )
+        filter_program.chmod(0o700)
+        (self.root / ".gitattributes").write_text("*.data filter=evil\n")
+        (self.root / "example.data").write_text("original\n")
+        run(self.root, "git", "add", ".gitattributes", "example.data")
+        run(self.root, "git", "commit", "-qm", "add filter fixture")
+        run(self.root, "git", "config", "filter.evil.clean", str(filter_program))
+        (self.root / "example.data").write_text("modified\n")
+        result = self.invoke()
+        self.assertGreater(result["status"]["tracked_changes"], 0)
+        self.assertFalse(marker.exists(), "Git clean filter executed in read-only audit")
+
+    def test_malformed_npm_files_return_unknown_instead_of_crash(self):
+        (self.root / "package.json").write_text("[]")
+        (self.root / "package-lock.json").write_text("{}")
+        self.assertEqual(self.invoke()["npm_root_alignment"]["status"], "unknown")
+        (self.root / "package.json").write_text('{"dependencies": []}')
+        (self.root / "package-lock.json").write_text(
+            '{"lockfileVersion":3,"packages":{"":{"dependencies":{}}}}')
+        self.assertEqual(self.invoke()["npm_root_alignment"]["status"], "unknown")
+        (self.root / "package.json").write_text('{"dependencies":{}}')
+        (self.root / "package-lock.json").write_text('{"packages":{"":[]}}')
+        self.assertEqual(self.invoke()["npm_root_alignment"]["status"], "unknown")
 
     def test_npm_lock_drift(self):
         (self.root / "package.json").write_text(

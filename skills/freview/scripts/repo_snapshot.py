@@ -8,17 +8,62 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
+from urllib.parse import urlsplit
 from pathlib import Path
 import subprocess
 import sys
 
 
+
+def _disabled_filter_settings(cwd, env):
+    """Neutralize configured Git clean/process/smudge hooks from untrusted repo."""
+    probe_command = ["git", "config", "--includes", "--null", "--name-only",
+                     "--get-regexp", r"^filter\..*\.(clean|process|smudge)$"]
+    try:
+        probe = subprocess.run(probe_command, cwd=cwd, env=env,
+                               stdin=subprocess.DEVNULL,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               check=False, timeout=10)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError("Could not inspect Git filter settings safely") from exc
+    if probe.returncode == 1:
+        return []
+    if probe.returncode or len(probe.stdout) > 65536:
+        raise RuntimeError("Git filter inspection failed; refusing audit")
+    try:
+        keys = [x.decode("utf-8", "strict") for x in probe.stdout.split(b"\0") if x]
+    except UnicodeDecodeError as exc:
+        raise RuntimeError("Invalid Git filter configuration; refusing audit") from exc
+    if len(keys) > 256:
+        raise RuntimeError("Too many Git filter drivers; refusing audit")
+    overrides = []
+    for key in sorted(set(keys)):
+        if not key.startswith("filter.") or not key.endswith((".clean", ".process", ".smudge")):
+            raise RuntimeError("Unexpected Git filter name; refusing audit")
+        overrides.extend(["-c", key + "="])
+    return overrides
+
+
 def git(args, cwd=None, allowed_failure=False):
     env = os.environ.copy()
+    # Git's fsmonitor setting can execute arbitrary local programs even for
+    # 'git status'. Force off at invocation time; do not trust repository config.
     env["GIT_OPTIONAL_LOCKS"] = "0"
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    env["GIT_CONFIG_GLOBAL"] = os.devnull
+    env["GIT_ATTR_NOSYSTEM"] = "1"
     try:
+        filter_overrides = _disabled_filter_settings(cwd, env)
         p = subprocess.run(
-            ["git", *args], cwd=cwd, env=env, stdin=subprocess.DEVNULL,
+            ["git", "--no-optional-locks",
+             "-c", "core.fsmonitor=false",
+             "-c", "core.hooksPath=" + os.devnull,
+             "-c", "diff.external=",
+             "-c", "core.pager=cat",
+             *filter_overrides, *args], cwd=cwd, env=env, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=20
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -51,8 +96,55 @@ def divergence(base, head, root):
         return None
 
 
+def safe_origin_identity(root):
+    """Normalize common forge remotes without recording tokens or userinfo.
+
+    Unknown/private-domain remotes are deliberately not exported.
+    Worktrees with no comparable public remote share a common-dir identity.
+    """
+    raw = text(["config", "--local", "--get", "remote.origin.url"], root, True)
+    recognized = {"github.com", "gitlab.com", "bitbucket.org", "codeberg.org"}
+    if raw and len(raw) <= 2048:
+        remote = raw.strip()
+        # Reject potentially ambiguous URLs including credential/query tokens.
+        if any(ch in remote for ch in ("?", "#", "\n", "\r")):
+            remote = ""
+        host = path = None
+        ssh = re.fullmatch(r"(?:[^@/:]+@)?([A-Za-z0-9.-]+):([^:]+)", remote)
+        if ssh:
+            host, path = ssh.group(1).lower(), ssh.group(2)
+        else:
+            try:
+                parsed = urlsplit(remote)
+                if parsed.scheme in ("https", "http", "ssh", "git") and not parsed.password:
+                    host = (parsed.hostname or "").lower()
+                    path = parsed.path.lstrip("/")
+            except ValueError:
+                pass
+        if host in recognized and path:
+            path = path.rstrip("/")
+            if path.endswith(".git"):
+                path = path[:-4]
+            segments = path.split("/")
+            # A verified conventional namespace/repository URL, not arbitrary input.
+            if 2 <= len(segments) <= 6 and all(
+                re.fullmatch(r"[A-Za-z0-9_.-]+", v) and v not in (".", "..")
+                for v in segments
+            ):
+                return {"identity": "forge:" + host + "/" + path.lower(),
+                        "public_remote": "https://" + host + "/" + path}
+    common = text(["rev-parse", "--git-common-dir"], root, True)
+    if not common:
+        return {"identity": None, "public_remote": None}
+    location = Path(common)
+    if not location.is_absolute():
+        location = root / location
+    return {"identity": "gitdir:" + str(location.resolve()),
+            "public_remote": None}
+
+
 def status_counts(root):
-    data = git(["status", "--porcelain=v1", "-z", "--untracked-files=normal"], root)
+    data = git(["status", "--porcelain=v1", "-z", "--untracked-files=normal", "--ignore-submodules=all"], root)
     parts = data.split(b"\0")
     tracked = untracked = 0
     i = 0
@@ -134,13 +226,26 @@ def npm_root_alignment(root):
     try:
         package = json.loads(manifest.read_text(encoding="utf-8"))
         locked = json.loads(lock.read_text(encoding="utf-8"))
-        root_deps = locked.get("packages", {}).get("")
+        if not isinstance(package, dict) or not isinstance(locked, dict):
+            return {"applicable": True, "status": "unknown",
+                    "reason": "Expected JSON objects for both npm files"}
+        packages = locked.get("packages")
+        if not isinstance(packages, dict):
+            return {"applicable": True, "status": "unknown",
+                    "reason": "Missing/invalid lockfile packages object"}
+        root_deps = packages.get("")
+        if root_deps is not None and not isinstance(root_deps, dict):
+            return {"applicable": True, "status": "unknown",
+                    "reason": "Invalid npm lock root package"}
         if root_deps is None:
             return {"applicable": True, "status": "unknown",
                     "reason": "lockfile lacks packages['']"}
         drift = []
         for field in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
             expected, actual = package.get(field, {}), root_deps.get(field, {})
+            if not isinstance(expected, dict) or not isinstance(actual, dict):
+                return {"applicable": True, "status": "unknown",
+                        "reason": "Invalid dependency map: " + field}
             for name in sorted(set(expected) | set(actual)):
                 if expected.get(name) != actual.get(name):
                     drift.append({"category": field, "name": name})
@@ -162,6 +267,7 @@ def snapshot(base=None, max_branches=200):
     base_ref = base or remote_head
     base_sha = commit(base_ref, root) if base_ref else None
     trees = worktree_list(root)
+    repo_identity = safe_origin_identity(root)
     raw_refs = text(
         ["for-each-ref", "--sort=-committerdate",
          "--format=%(refname:short)%00%(objectname)%00%(upstream:short)%00%(upstream:track)",
@@ -178,12 +284,13 @@ def snapshot(base=None, max_branches=200):
             "base_divergence": divergence(base_sha, sha, root) if base_sha else None,
         })
     uncommitted_checks = {
-        "working_diff_clean": git(["diff", "--check"], root, True) is not None,
-        "staged_diff_clean": git(["diff", "--cached", "--check"], root, True) is not None,
+        "working_diff_clean": git(["diff", "--no-ext-diff", "--no-textconv", "--check"], root, True) is not None,
+        "staged_diff_clean": git(["diff", "--cached", "--no-ext-diff", "--no-textconv", "--check"], root, True) is not None,
     }
     return {
         "kind": "freview-local-readonly", "collected_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
         "root": str(root), "head_sha": head, "branch": branch,
+        "repo_identity": repo_identity["identity"], "public_remote": repo_identity["public_remote"],
         "upstream": upstream, "remote_head_cached": remote_head,
         "base": {"ref": base_ref, "sha": base_sha, "divergence": divergence(base_sha, head, root)}
         if base_sha else None,

@@ -67,6 +67,10 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(self.invoke(self.write("bad.json", bad), ok=False).returncode, 2)
         bad["remediation_plan"] = []
         bad["duplicate_clusters"] = []
+        bad["verification_manifest"] = [{
+            "category": "git", "status": "verified",
+            "evidence": ["git metadata at fixture SHA"]
+        }]
         self.assertEqual(self.invoke(self.write("good.json", bad)).returncode, 0)
 
     def test_agent_action_needs_approval(self):
@@ -74,6 +78,70 @@ class ReportTests(unittest.TestCase):
         bad["duplicate_clusters"] = []
         bad["remediation_plan"] = [{"requires_approval": False, "verification": []}]
         self.assertEqual(self.invoke(self.write("bad.json", bad), ok=False).returncode, 2)
+
+    def test_report_schema_rejects_unknown_fields_and_bad_nested_types(self):
+        invalid = sample()
+        invalid["unexpected"] = "must reject"
+        self.assertEqual(self.invoke(self.write("extra.json", invalid), ok=False).returncode, 2)
+        invalid = sample()
+        invalid["scope"]["included"] = ["git", 10]
+        self.assertEqual(self.invoke(self.write("bad-scope.json", invalid), ok=False).returncode, 2)
+        invalid = sample()
+        invalid["timestamp_utc"] = "yesterday"
+        self.assertEqual(self.invoke(self.write("bad-time.json", invalid), ok=False).returncode, 2)
+        invalid = sample([finding("a")])
+        invalid["findings"][0]["remediation"] = {
+            "summary": "propose fix", "steps": ["review"], "verification": [],
+            "confidence": "high", "requires_approval": False
+        }
+        self.assertEqual(self.invoke(self.write("bad-remediation.json", invalid), ok=False).returncode, 2)
+
+    def test_same_repository_multiple_worktree_paths_can_compare(self):
+        old = sample([finding("a")])
+        new = sample([finding("b")])
+        old["repository"]["identity"] = "forge:github.com/owner/project"
+        new["repository"]["identity"] = "forge:github.com/owner/project"
+        new["repository"]["root"] = "/tmp/different-worktree"
+        result = json.loads(self.invoke(
+            self.write("old.json", old), self.write("new.json", new)).stdout)
+        self.assertEqual(result["new"][0]["id"], "b")
+        self.assertEqual(result["resolved"][0]["id"], "a")
+
+    def test_report_scope_baseline_changes_are_not_comparable(self):
+        old = sample()
+        new = sample()
+        old["repository"]["base_ref"] = "main"
+        new["repository"]["base_ref"] = "dev"
+        self.assertEqual(self.invoke(
+            self.write("old.json", old), self.write("new.json", new),
+            ok=False).returncode, 2)
+
+    def test_full_audit_cannot_claim_unchecked_category(self):
+        bad = sample(kind="full-audit", mode="full", included=("git", "code-review"))
+        bad["duplicate_clusters"] = []
+        bad["remediation_plan"] = []
+        bad["verification_manifest"] = [
+            {"category": "git", "status": "verified", "evidence": ["SHA"]},
+            {"category": "code-review", "status": "not-observed", "evidence": []}
+        ]
+        self.assertEqual(self.invoke(self.write("bad.json", bad), ok=False).returncode, 2)
+        bad["verification_manifest"][1] = {
+            "category": "code-review", "status": "verified",
+            "evidence": ["official read-only reviewer receipt"]
+        }
+        self.assertEqual(self.invoke(self.write("good.json", bad)).returncode, 0)
+
+    def test_partial_audit_needs_manifest_for_all_selected_categories(self):
+        partial = sample(kind="partial-audit", included=("git", "ci"))
+        partial["duplicate_clusters"] = []
+        partial["remediation_plan"] = []
+        partial["verification_manifest"] = [
+            {"category": "git", "status": "verified", "evidence": ["SHA"]}
+        ]
+        self.assertEqual(self.invoke(self.write("bad.json", partial), ok=False).returncode, 2)
+        partial["verification_manifest"].append(
+            {"category": "ci", "status": "not-observed", "evidence": []})
+        self.assertEqual(self.invoke(self.write("good.json", partial)).returncode, 0)
 
     def test_missing_evidence_refuses(self):
         bad = sample([finding("x")])

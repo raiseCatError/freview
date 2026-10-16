@@ -2,6 +2,7 @@
 """freview config-aware local snapshot. Read-only unless --output explicitly selects a new file."""
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 sys.dont_write_bytecode = True  # Avoid creating __pycache__ during an audit.
@@ -11,6 +12,7 @@ CATEGORIES = ("git", "tracking", "implementation", "ci", "releases", "docs",
               "community", "dependencies", "security-posture", "accessibility",
               "code-review", "security-scan")
 CORE = CATEGORIES[:10]
+METADATA = tuple(x for x in CORE if x != "implementation")
 QUICK = ("git", "ci", "releases", "docs", "community")
 SECTIONS = {
     "repository": {"project_type", "development_branch", "release_branches"},
@@ -95,10 +97,16 @@ def categories(items):
 def scope(args, config):
     prefs = config.get("defaults", {})
     mode = args.mode or prefs.get("mode", "standard")
-    selected = list(QUICK if mode == "quick" else CORE)
+    selected = list(QUICK if mode == "quick" else CORE if mode == "full" else METADATA)
     if mode == "full":
         selected.append("code-review")
     for name in prefs.get("include", []):
+        # Repository data cannot silently turn a daily audit into source review.
+        # Repository-controlled config never authorizes external scanners.
+        if name == "security-scan":
+            continue
+        if mode in ("quick", "standard") and name in ("implementation", "code-review"):
+            continue
         if name not in selected:
             selected.append(name)
     only = categories(args.only)
@@ -108,7 +116,10 @@ def scope(args, config):
     for name in with_categories:
         if name not in selected:
             selected.append(name)
-    excluded = set(prefs.get("exclude", []))
+    # An explicit user mode/scope takes precedence over repository defaults.
+    excluded = set(prefs.get("exclude", [])) if not (
+        args.mode is not None or only or with_categories
+    ) else set()
     specialist = config.get("specialists", {})
     explicit_code = ("code-review" in with_categories or "code-review" in only
                      or args.mode == "full")
@@ -119,7 +130,7 @@ def scope(args, config):
         excluded.add("code-review")
     if explicit_code:
         excluded.discard("code-review")
-    if specialist.get("security_scan") == "off":
+    if specialist.get("security_scan") == "off" and "security-scan" not in with_categories:
         excluded.add("security-scan")
     excluded -= set(with_categories)
     excluded.update(categories(args.exclude))
@@ -190,7 +201,8 @@ def create_report(args):
                             for x in ("code-review", "security-scan")},
             "coverage": "local Git and root-level metadata only"
         },
-        "repository": {"root": snap["root"], "remote": None,
+        "repository": {"root": snap["root"], "remote": snap["public_remote"],
+                       "identity": snap["repo_identity"],
                        "base_ref": snap["base"]["ref"] if snap["base"] else None,
                        "base_sha": snap["base"]["sha"] if snap["base"] else None,
                        "head_sha": snap["head_sha"]},
@@ -248,7 +260,12 @@ def main():
             dest = Path(args.output).expanduser()
             if not dest.parent.is_dir():
                 raise ValueError("Output parent doesn't exist; no directories are created")
-            with dest.open("x", encoding="utf-8") as stream:
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            if hasattr(os, "O_NOFOLLOW"):
+                flags |= os.O_NOFOLLOW
+            # An audit may contain private paths/branches. Never create it 0644.
+            fd = os.open(dest, flags, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
                 stream.write(output)
             print("Wrote local snapshot: " + str(dest))
         else:

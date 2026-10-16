@@ -1,5 +1,6 @@
 """Config, mode and JSON report fixtures; no external packages or network calls."""
 import json
+import stat
 from pathlib import Path
 import subprocess
 import sys
@@ -42,12 +43,14 @@ class ReviewCLITests(unittest.TestCase):
         self.assertEqual(report["report_kind"], "local-snapshot")
         self.assertEqual(report["mode_requested"], "standard")
         self.assertNotIn("code-review", report["scope"]["included"])
+        self.assertNotIn("implementation", report["scope"]["included"])
         self.assertNotIn("security-scan", report["scope"]["included"])
         self.assertTrue(report["not_observed"])
 
     def test_full_includes_code_but_does_not_run_it(self):
         report = self.report("--mode", "full")
         self.assertIn("code-review", report["scope"]["included"])
+        self.assertIn("implementation", report["scope"]["included"])
         self.assertEqual(report["scope"]["specialists"]["code-review"], "agent-review-required")
         self.assertEqual(report["report_kind"], "local-snapshot")
 
@@ -82,6 +85,49 @@ class ReviewCLITests(unittest.TestCase):
         self.assertTrue(report["remediation_plan"][0]["requires_approval"])
         self.assertTrue(report["findings"][0]["remediation"]["steps"])
 
+    def test_repo_cannot_enable_implementation_in_daily_mode(self):
+        (self.root / ".freview.json").write_text(json.dumps({
+            "schema_version": 1,
+            "defaults": {"include": ["implementation", "code-review", "security-scan"]}
+        }))
+        report = self.report()
+        self.assertNotIn("implementation", report["scope"]["included"])
+        self.assertNotIn("code-review", report["scope"]["included"])
+        self.assertNotIn("security-scan", report["scope"]["included"])
+        requested = self.report("--with", "implementation")
+        self.assertIn("implementation", requested["scope"]["included"])
+        scanner = self.report("--with", "security-scan")
+        self.assertIn("security-scan", scanner["scope"]["included"])
+
+    def test_explicit_full_not_narrowed_by_project_config(self):
+        (self.root / ".freview.json").write_text(json.dumps({
+            "schema_version": 1,
+            "defaults": {"exclude": ["ci", "security-posture", "tracking"]}
+        }))
+        default_report = self.report()
+        self.assertNotIn("ci", default_report["scope"]["included"])
+        full = self.report("--mode", "full")
+        for check in ("ci", "security-posture", "tracking", "code-review"):
+            self.assertIn(check, full["scope"]["included"])
+        explicit_standard = self.report("--mode", "standard")
+        self.assertIn("ci", explicit_standard["scope"]["included"])
+        excluded = self.report("--mode", "full", "--exclude", "ci")
+        self.assertNotIn("ci", excluded["scope"]["included"])
+
+    def test_remote_identity_never_leaks_credentials(self):
+        run(self.root, "git", "remote", "add", "origin",
+            "https://hidden-token@example.com/company/project.git")
+        unknown = self.report()
+        self.assertIsNone(unknown["repository"]["remote"])
+        self.assertNotIn("hidden-token", json.dumps(unknown))
+        run(self.root, "git", "remote", "set-url", "origin",
+            "git@github.com:ExampleOrg/ExampleRepo.git")
+        known = self.report()
+        self.assertEqual(known["repository"]["identity"],
+                         "forge:github.com/exampleorg/examplerepo")
+        self.assertEqual(known["repository"]["remote"],
+                         "https://github.com/ExampleOrg/ExampleRepo")
+
     def test_only_selection(self):
         report = self.report("--only", "git,releases")
         self.assertEqual(report["scope"]["included"], ["git", "releases"])
@@ -102,6 +148,7 @@ class ReviewCLITests(unittest.TestCase):
         outfile = Path(self.tmp.name) / "report.json"
         self.call("--format", "json", "--output", str(outfile))
         self.assertEqual(json.loads(outfile.read_text())["report_kind"], "local-snapshot")
+        self.assertEqual(stat.S_IMODE(outfile.stat().st_mode), 0o600)
         self.assertEqual(self.call("--output", str(outfile), ok=False).returncode, 2)
 
     def test_unknown_category_refuses(self):

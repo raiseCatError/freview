@@ -13,6 +13,12 @@ Always include:
 - A small prioritized list of *non-destructive* next actions; no assumption user approves fixes.
 - An explicit **Not checked / Not observable** table or paragraph.
 
+## Verification manifest (required for agent audits)
+
+A `partial-audit` or `full-audit` JSON report requires `verification_manifest` entries for **each selected category**. Every entry states `category`, `status` (`verified`, `partial`, `not-observed`, or `not-applicable`), evidence/source links and, when applicable, exact ref and tool/version. `verified` means the promised *review/check was actually performed*, not that the project has no defects. `not-applicable` requires an explanation.
+
+A `full-audit` may use that label only if all selected categories were reviewed or genuinely inapplicable, with code review actually evidenced when selected. Otherwise issue a `partial-audit` and explicitly record omissions. Never claim Full simply because an agent was instructed to perform it or a local metadata helper succeeded.
+
 ## Severity ≠ status
 
 Priority P0/P1/P2 describes urgency/impact. Status describes actual lifecycle stage: research, isolated, integrated candidate, verified, human accepted, shipped, deferred, unknown. An intentionally unimplemented feature is not automatically a P0 defect; a false “released and safe” claim can be.
@@ -43,7 +49,7 @@ The portable [report.schema.json](../assets/schemas/freview-report.schema.json) 
 
 Use `python3 <installed-skill>/scripts/review.py --mode standard --format json` to generate a local snapshot to stdout. Pass an explicit `--output /approved/scratch/report.json` to write one new report file; the command never overwrites existing files or creates directories.
 
-Use `python3 <installed-skill>/scripts/report_tools.py REPORT.json` to validate the supported common report fields, and `python3 <installed-skill>/scripts/report_tools.py PRIOR.json CURRENT.json` to compare new/resolved/changed finding IDs. Add `--format json` for machine-readable delta. This standard-library validator is deliberately a limited structural validator, not a complete JSON Schema validator; downstream consumers may enforce the complete published schema separately.
+Use `python3 <installed-skill>/scripts/report_tools.py REPORT.json` to validate the supported common report fields, and `python3 <installed-skill>/scripts/report_tools.py PRIOR.json CURRENT.json` to compare new/resolved/changed finding IDs. Add `--format json` for machine-readable delta. The standard-library validator enforces the vocabulary used by freview's bundled v1 report schema (including nested types, permitted values, approval-only plans and manifest requirements). It is not a general-purpose JSON Schema validator for arbitrary external schemas.
 
 Only compare reports with matching repository identity, report kind and category coverage. A disappearing finding is a candidate for revalidation, not proof of remediation if investigation coverage differs. Without a supplied prior report, never pretend a previous daily run occurred.
 

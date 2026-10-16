@@ -115,11 +115,13 @@ python3 skills/freview/scripts/review.py --mode full --format markdown
 python3 skills/freview/scripts/report_tools.py previous.json current.json --format json
 ```
 
-The CLI's report is deliberately `local-snapshot`, **not a complete agent review**. The agent produces wider evidence-backed reports following [report JSON Schema](schemas/freview-report.schema.json). An explicit `--output` can write one new file under an approved scratch directory; no files are written by default. To compare daily findings, supply two reports with compatible coverage; the validator will refuse incomparable scopes.
+The CLI's report is deliberately `local-snapshot`, **not a complete agent review**. The agent produces wider evidence-backed reports following [report JSON Schema](schemas/freview-report.schema.json). An explicit `--output` can write one new file under an approved scratch directory; no files are written by default. To compare daily findings, supply two reports with compatible mode, category scope and integration baseline; the validator refuses incompatible scopes and uses sanitized forge identity or a shared local Git common directory across worktrees. Explicit output files use owner-only permissions.
+
+Agent-generated Full/Partial JSON reports must include a per-category verification manifest; a Full report cannot claim that skipped checks or unperformed code reviews passed. The local helper remains a metadata snapshot, not a completed remote audit.
 
 ## Optional daily automation
 
-See the [scheduled GitHub Actions template](templates/github-actions/freview-daily.yml), which is **not active** until a user deliberately copies/configures it in their own repository. It generates a local Git snapshot, not a paid AI full review. For a recurring agent-driven Standard report, configure your preferred scheduler and repository connector separately with explicit authorization. No hosted automation is silently provisioned.
+See the [scheduled GitHub Actions template](templates/github-actions/freview-daily.yml), which is **not active** until a user deliberately copies/configures it in their own repository. It generates a local Git snapshot, not a paid AI full review. Metadata artifact uploading is **off by default** and requires the explicit `FREVIEW_UPLOAD_ARTIFACT=true` repository variable. For a recurring agent-driven Standard report, configure your preferred scheduler and repository connector separately with explicit authorization. No hosted automation is silently provisioned.
 
 ## Specialist delegation
 
@@ -146,6 +148,8 @@ It never fetches GitHub data automatically, never scans duplicate source code, a
 freview prefers [official Anthropic Code Review](https://claude.com/plugins/code-review) and [OpenAI Codex Code Review](https://help.openai.com/en/articles/20001552-review-pull-requests-with-codex) if those capabilities are actually available. It does **not** recommend `amragl/codebase-review` (3 GitHub stars). Third-party specialists require verified adoption (currently at least 1,000 stars for repository-based tools), current maintenance, quality, suitability and permissions; stars alone are not proof of quality. Official product services need separate entitlement and billing checks. Any review mode that posts GitHub comments or triggers a paid cloud review requires explicit approval.
 
 ## Safety
+
+- For untrusted checkouts, prefer a sandbox with no developer credentials. The helper disables known Git execution hooks and configured filters, but **does not provide operating-system isolation**.
 
 - No automatic merges, destructive cleanup, CI setup, issue edits, deploys or dependency installations.
 - No presumption that a closed issue means shipped, or an unchecked box means absent code.
