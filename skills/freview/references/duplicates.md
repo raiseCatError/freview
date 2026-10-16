@@ -28,3 +28,10 @@ Do not deduplicate purely by title similarity, shared keywords, common changed f
 For each suspected/confirmed cluster show: canonical recommended work item (with rationale, not a destructive action), other issue/PR/roadmap references, status (confirmed/candidate/related/not duplicate), exact evidence and non-matching acceptance constraints, confidence, reason and proposed non-destructive consolidation/check step. If status confirmed, explain how to preserve links, comments, acceptance conditions, ownership and historical evidence before any future close/merge.
 
 [Optional local metadata helper](../scripts/duplicates.py) accepts explicitly exported issue/PR metadata and returns **candidates only**. It never fetches, accesses source code, or auto-confirms duplicates.
+
+
+## Non-closing references, stdin and comparison budgets
+
+The metadata checker recognizes PR/issue relationships via `Closes #N`, `Fixes #N`, `Resolves #N`, and non-closing `Refs #N`/`References #N`. Non-closing links do **not** establish actual implementation, approval or release; compare the goals and delivery artifacts separately. This is particularly important when issues remain open until physical QA.
+
+Input `-` reads bounded JSON from standard input (16 MiB max). `--max-comparisons` bounds candidate-search CPU work; `--max-pairs` bounds displayed candidates. Either budget can limit coverage: **zero candidates with truncated comparison coverage is not proof of zero duplicates**. No scanner executes issue instructions or closes anything. Prefer checked, attributable metadata feeds over blindly trusting current titles.

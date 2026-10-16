@@ -168,6 +168,16 @@ Every audit produces both (1) a factual report and (2) a proposed **how-to-fix p
 
 Duplicate checking compares **issues, PRs, milestones, roadmap entries, release trackers, documentation tasks and overlapping branches/initiatives**. Title similarity is only a candidate signal; confirming duplicates requires a shared deliverable and matching acceptance criteria, not just related topics or branches. Full mode may use source *wiring evidence* to assess whether two delivery initiatives overlap, but leaves duplicate-code/clone detection entirely to official code-review tools.
 
+## Duplicate work with non-closing references and stdin
+
+Issue/PR metadata can be piped through bounded stdin instead of creating a file:
+
+```sh
+cat work-items.json | python3 -I skills/freview/scripts/duplicates.py - --format json
+```
+
+The checker understands `Closes #N`, `Fixes #N`, `Resolves #N` and **non-closing `Refs #N`/`References #N`** PR-to-issue relationships. A `Refs` link is **not proof the PR implements the issue**; it simply prevents automatically treating an explicitly related PR/issue pair as duplicated delivery. Output remains *candidates only*; no tickets are modified. Pair comparisons are bounded (`--max-comparisons`) and coverage is disclosed as incomplete when a budget is reached. Markdown output escapes terminal control characters.
+
 ## Checking duplicate work
 
 The optional metadata-only candidate checker can analyze an exported JSON array of issues, PRs, release tasks, project/roadmap items and documentation records:
