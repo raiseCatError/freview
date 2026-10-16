@@ -6,6 +6,10 @@ In `full` mode, enumerate all accessible issues/PRs for the chosen repos and sco
 
 Review recently closed high-impact items and “Done” project status separately from open tickets. Check stale checklist state against later PRs. A research ticket can legitimately close even though runtime implementation remains unbuilt.
 
+## Duplicate tracking
+
+In every review containing the tracking category, examine issues, PRs, milestones, roadmap records and release trackers for genuine duplicated work. Use linked acceptance and release scopes, not just title similarity. Ordinary issue-to-PR implementation, dependent or parent/child work, and backports are not duplicates. See [duplicate evidence rules](duplicates.md). Proposed consolidation always requires maintainer approval.
+
 ## Per-acceptance chain
 
 For each important behavior:
