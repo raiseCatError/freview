@@ -243,15 +243,60 @@ def safe_markdown(value):
     return "".join(out)
 
 
+def publication_risks(report):
+    """Privacy heuristics only; passing never guarantees a safe public report."""
+    patterns = (
+        ("local-user-path", re.compile(r"(?:/Users/[^/\\s]+|/home/[^/\\s]+|/Volumes/[^/\\s]+)")),
+        ("file-uri", re.compile(r"file://", re.I)),
+        ("url-userinfo", re.compile(r"\\b(?:https?|ssh)://[^\\s/@:]+:[^\\s/@]+@", re.I)),
+        ("credential-shaped-text", re.compile(r"\\b(?:github_pat_|ghp_|gho_|sk-)[A-Za-z0-9_-]{12,}")),
+        ("private-key-marker", re.compile(r"-----BEGIN (?:OPENSSH|RSA|EC|DSA|PRIVATE) PRIVATE KEY-----")),
+    )
+    found = set()
+
+    def inspect(value):
+        if isinstance(value, dict):
+            for child in value.values():
+                inspect(child)
+        elif isinstance(value, list):
+            for child in value:
+                inspect(child)
+        elif isinstance(value, str):
+            if any(unicodedata.category(ch) == "Cc" and ch not in "\\r\\n\\t"
+                   or ord(ch) in (0x202A, 0x202B, 0x202D, 0x202E, 0x2066, 0x2067, 0x2068, 0x2069)
+                   for ch in value):
+                found.add("terminal-or-bidi-control")
+            for label, regex in patterns:
+                if regex.search(value):
+                    found.add(label)
+
+    inspect(report)
+    return sorted(found)
+
+
 def main():
     p = argparse.ArgumentParser(description="Validate or compare freview JSON reports")
     p.add_argument("reports", nargs="+", help="one report validates; two compare")
     p.add_argument("--format", choices=("json", "markdown"), default="markdown")
+    p.add_argument("--check-public", action="store_true",
+                   help="advisory only: flag obvious private paths, token shapes and control text")
     args = p.parse_args()
     if len(args.reports) not in (1, 2):
         p.error("pass one report to validate, or two to compare")
     try:
         reports = [load(x) for x in args.reports]
+        if args.check_public:
+            if len(reports) != 1:
+                raise ValueError("--check-public requires exactly one report")
+            risks = publication_risks(reports[0])
+            result = {"kind": "freview-publication-privacy-check/1",
+                      "obvious_risks": risks,
+                      "no_obvious_risks_detected": not risks,
+                      "warning": "Heuristic check only: absence of matches does NOT certify publication safety. Manual review required."}
+            print(json.dumps(result, indent=2) if args.format == "json" else
+                  "Publication privacy check: " + (", ".join(risks) if risks else "no obvious patterns") +
+                  "\\nManual privacy review always required.")
+            return 3 if risks else 0
         if len(reports) == 1:
             result = {"valid": True, "kind": reports[0]["report_kind"],
                       "findings": len(reports[0]["findings"])}
