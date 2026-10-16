@@ -15,10 +15,19 @@ import sys
 
 def git(args, cwd=None, allowed_failure=False):
     env = os.environ.copy()
+    # Git's fsmonitor setting can execute arbitrary local programs even for
+    # 'git status'. Force off at invocation time; do not trust repository config.
     env["GIT_OPTIONAL_LOCKS"] = "0"
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
     try:
         p = subprocess.run(
-            ["git", *args], cwd=cwd, env=env, stdin=subprocess.DEVNULL,
+            ["git", "--no-optional-locks",
+             "-c", "core.fsmonitor=false",
+             "-c", "core.hooksPath=" + os.devnull,
+             "-c", "diff.external=",
+             "-c", "core.pager=cat",
+             *args], cwd=cwd, env=env, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=20
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -52,7 +61,7 @@ def divergence(base, head, root):
 
 
 def status_counts(root):
-    data = git(["status", "--porcelain=v1", "-z", "--untracked-files=normal"], root)
+    data = git(["status", "--porcelain=v1", "-z", "--untracked-files=normal", "--ignore-submodules=all"], root)
     parts = data.split(b"\0")
     tracked = untracked = 0
     i = 0
@@ -134,13 +143,26 @@ def npm_root_alignment(root):
     try:
         package = json.loads(manifest.read_text(encoding="utf-8"))
         locked = json.loads(lock.read_text(encoding="utf-8"))
-        root_deps = locked.get("packages", {}).get("")
+        if not isinstance(package, dict) or not isinstance(locked, dict):
+            return {"applicable": True, "status": "unknown",
+                    "reason": "Expected JSON objects for both npm files"}
+        packages = locked.get("packages")
+        if not isinstance(packages, dict):
+            return {"applicable": True, "status": "unknown",
+                    "reason": "Missing/invalid lockfile packages object"}
+        root_deps = packages.get("")
+        if root_deps is not None and not isinstance(root_deps, dict):
+            return {"applicable": True, "status": "unknown",
+                    "reason": "Invalid npm lock root package"}
         if root_deps is None:
             return {"applicable": True, "status": "unknown",
                     "reason": "lockfile lacks packages['']"}
         drift = []
         for field in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
             expected, actual = package.get(field, {}), root_deps.get(field, {})
+            if not isinstance(expected, dict) or not isinstance(actual, dict):
+                return {"applicable": True, "status": "unknown",
+                        "reason": "Invalid dependency map: " + field}
             for name in sorted(set(expected) | set(actual)):
                 if expected.get(name) != actual.get(name):
                     drift.append({"category": field, "name": name})
@@ -178,8 +200,8 @@ def snapshot(base=None, max_branches=200):
             "base_divergence": divergence(base_sha, sha, root) if base_sha else None,
         })
     uncommitted_checks = {
-        "working_diff_clean": git(["diff", "--check"], root, True) is not None,
-        "staged_diff_clean": git(["diff", "--cached", "--check"], root, True) is not None,
+        "working_diff_clean": git(["diff", "--no-ext-diff", "--no-textconv", "--check"], root, True) is not None,
+        "staged_diff_clean": git(["diff", "--cached", "--no-ext-diff", "--no-textconv", "--check"], root, True) is not None,
     }
     return {
         "kind": "freview-local-readonly", "collected_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
