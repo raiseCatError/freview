@@ -22,6 +22,8 @@ Category aliases in natural language: `git` includes worktrees and ancestry; `tr
 - `freview quick --base origin/develop` → use the specified ref if it exists; otherwise report inability, don't quietly substitute a different branch.
 - `freview full on repo owner/repo` → remote-only if no local files; do not pretend to have local worktrees.
 
+All applicable modes include duplicate work-item reconciliation and a practical remediation plan for confirmed findings. No mode performs code clone detection as part of freview's own tracking review. New, never-implemented roadmap features receive only a status/tracking next step unless the user requests `--suggest-implementation`; then Full may outline future implementation options without changing files.
+
 ## How to adapt
 
 Infer, do not hardcode:
