@@ -8,6 +8,8 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
+from urllib.parse import urlsplit
 from pathlib import Path
 import subprocess
 import sys
@@ -58,6 +60,53 @@ def divergence(base, head, root):
         return {"behind": behind, "ahead": ahead}
     except ValueError:
         return None
+
+
+def safe_origin_identity(root):
+    """Normalize common forge remotes without recording tokens or userinfo.
+
+    Unknown/private-domain remotes are deliberately not exported.
+    Worktrees with no comparable public remote share a common-dir identity.
+    """
+    raw = text(["config", "--local", "--get", "remote.origin.url"], root, True)
+    recognized = {"github.com", "gitlab.com", "bitbucket.org", "codeberg.org"}
+    if raw and len(raw) <= 2048:
+        remote = raw.strip()
+        # Reject potentially ambiguous URLs including credential/query tokens.
+        if any(ch in remote for ch in ("?", "#", "\n", "\r")):
+            remote = ""
+        host = path = None
+        ssh = re.fullmatch(r"(?:[^@/:]+@)?([A-Za-z0-9.-]+):([^:]+)", remote)
+        if ssh:
+            host, path = ssh.group(1).lower(), ssh.group(2)
+        else:
+            try:
+                parsed = urlsplit(remote)
+                if parsed.scheme in ("https", "http", "ssh", "git") and not parsed.password:
+                    host = (parsed.hostname or "").lower()
+                    path = parsed.path.lstrip("/")
+            except ValueError:
+                pass
+        if host in recognized and path:
+            path = path.rstrip("/")
+            if path.endswith(".git"):
+                path = path[:-4]
+            segments = path.split("/")
+            # A verified conventional namespace/repository URL, not arbitrary input.
+            if 2 <= len(segments) <= 6 and all(
+                re.fullmatch(r"[A-Za-z0-9_.-]+", v) and v not in (".", "..")
+                for v in segments
+            ):
+                return {"identity": "forge:" + host + "/" + path.lower(),
+                        "public_remote": "https://" + host + "/" + path}
+    common = text(["rev-parse", "--git-common-dir"], root, True)
+    if not common:
+        return {"identity": None, "public_remote": None}
+    location = Path(common)
+    if not location.is_absolute():
+        location = root / location
+    return {"identity": "gitdir:" + str(location.resolve()),
+            "public_remote": None}
 
 
 def status_counts(root):
@@ -184,6 +233,7 @@ def snapshot(base=None, max_branches=200):
     base_ref = base or remote_head
     base_sha = commit(base_ref, root) if base_ref else None
     trees = worktree_list(root)
+    repo_identity = safe_origin_identity(root)
     raw_refs = text(
         ["for-each-ref", "--sort=-committerdate",
          "--format=%(refname:short)%00%(objectname)%00%(upstream:short)%00%(upstream:track)",
@@ -206,6 +256,7 @@ def snapshot(base=None, max_branches=200):
     return {
         "kind": "freview-local-readonly", "collected_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
         "root": str(root), "head_sha": head, "branch": branch,
+        "repo_identity": repo_identity["identity"], "public_remote": repo_identity["public_remote"],
         "upstream": upstream, "remote_head_cached": remote_head,
         "base": {"ref": base_ref, "sha": base_sha, "divergence": divergence(base_sha, head, root)}
         if base_sha else None,
