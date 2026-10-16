@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
+sys.dont_write_bytecode = True  # Avoid creating __pycache__ during an audit.
 from repo_snapshot import snapshot, text
 
 CATEGORIES = ("git", "tracking", "implementation", "ci", "releases", "docs",
