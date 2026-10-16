@@ -87,13 +87,13 @@ class ReportTests(unittest.TestCase):
     def test_report_markdown_renders_untrusted_controls_literally(self):
         left = sample([finding("one")])
         right = sample([finding("one")])
-        right["findings"][0]["summary"] = "Bad\\x1b[2J injection"
+        right["findings"][0]["summary"] = "Bad\x1b[2J injection"
         p = subprocess.run([sys.executable, str(SCRIPT),
                             self.write("m-left.json", left),
                             self.write("m-right.json", right)],
                            text=True, capture_output=True)
         self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertNotIn("\\x1b", p.stdout)
+        self.assertNotIn("\x1b", p.stdout)
         self.assertIn("u001b", p.stdout)
 
     def test_incompatible_coverage_refuses(self):
