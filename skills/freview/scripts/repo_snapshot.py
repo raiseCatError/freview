@@ -46,7 +46,12 @@ def _disabled_filter_settings(cwd, env):
 
 
 def git(args, cwd=None, allowed_failure=False):
-    env = os.environ.copy()
+    # Git's inherited environment can override repository discovery/config
+    # and activate trace-file writes. Reconstruct a safe Git-specific env rather
+    # than allowing caller-provided GIT_CONFIG_*, GIT_TRACE*, GIT_INDEX_FILE,
+    # GIT_EXTERNAL_DIFF or other unexpected GIT_* settings through.
+    env = {key: value for key, value in os.environ.items()
+           if not key.startswith("GIT_")}
     # Git's fsmonitor setting can execute arbitrary local programs even for
     # 'git status'. Force off at invocation time; do not trust repository config.
     env["GIT_OPTIONAL_LOCKS"] = "0"
@@ -131,7 +136,8 @@ def safe_origin_identity(root):
                 re.fullmatch(r"[A-Za-z0-9_.-]+", v) and v not in (".", "..")
                 for v in segments
             ):
-                return {"identity": "forge:" + host + "/" + path.lower(),
+                return {"identity": "forge:" + host + "/" +
+                        (path.lower() if host == "github.com" else path),
                         "public_remote": "https://" + host + "/" + path}
     common = text(["rev-parse", "--git-common-dir"], root, True)
     if not common:
