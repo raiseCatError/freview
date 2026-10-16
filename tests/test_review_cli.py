@@ -61,8 +61,9 @@ class ReviewCLITests(unittest.TestCase):
                   "specialists": {"code_review": "off"}}
         (self.root / ".freview.json").write_text(json.dumps(policy))
         report = self.report()
-        self.assertEqual(report["mode_requested"], "full")
+        self.assertEqual(report["mode_requested"], "standard")
         self.assertNotIn("code-review", report["scope"]["included"])
+        self.assertNotIn("implementation", report["scope"]["included"])
         self.assertNotIn("ci", report["scope"]["included"])
         report = self.report("--mode", "full")
         self.assertIn("code-review", report["scope"]["included"])
@@ -127,6 +128,37 @@ class ReviewCLITests(unittest.TestCase):
                          "forge:github.com/exampleorg/examplerepo")
         self.assertEqual(known["repository"]["remote"],
                          "https://github.com/ExampleOrg/ExampleRepo")
+
+    def test_project_full_default_cannot_escalate_unattended_mode(self):
+        (self.root / ".freview.json").write_text(json.dumps({
+            "schema_version": 1,
+            "defaults": {"mode": "full", "include": ["implementation", "code-review", "security-scan"]}
+        }))
+        report = self.report()
+        self.assertEqual(report["mode_requested"], "standard")
+        self.assertNotIn("code-review", report["scope"]["included"])
+        self.assertNotIn("implementation", report["scope"]["included"])
+        self.assertNotIn("security-scan", report["scope"]["included"])
+        full = self.report("--mode", "full")
+        self.assertIn("code-review", full["scope"]["included"])
+
+    def test_project_config_symlink_requires_explicit_selection(self):
+        outside = Path(self.tmp.name) / "outside.json"
+        outside.write_text('{"schema_version": 1}')
+        (self.root / ".freview.json").symlink_to(outside)
+        denied = self.call("--format", "json", ok=False)
+        self.assertEqual(denied.returncode, 2)
+        self.assertIn("symlink", denied.stderr)
+        approved = self.report("--config", str(outside))
+        self.assertEqual(approved["mode_requested"], "standard")
+
+    def test_explicit_only_security_scan_beats_project_preference(self):
+        (self.root / ".freview.json").write_text(json.dumps({
+            "schema_version": 1, "specialists": {"security_scan": "off"}
+        }))
+        report = self.report("--only", "security-scan")
+        self.assertEqual(report["scope"]["included"], ["security-scan"])
+        self.assertEqual(report["scope"]["specialists"]["security-scan"], "agent-review-required")
 
     def test_only_selection(self):
         report = self.report("--only", "git,releases")
