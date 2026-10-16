@@ -102,6 +102,9 @@ def scope(args, config):
         selected.append("code-review")
     for name in prefs.get("include", []):
         # Repository data cannot silently turn a daily audit into source review.
+        # Repository-controlled config never authorizes external scanners.
+        if name == "security-scan":
+            continue
         if mode in ("quick", "standard") and name in ("implementation", "code-review"):
             continue
         if name not in selected:
