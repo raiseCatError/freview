@@ -118,6 +118,23 @@ def scan_definitions(contents, source, home):
     return found
 
 
+def referenced_assets(root):
+    """Statically discover bundled links in SKILL.md; never execute content."""
+    required = set(BUNDLE_REQUIRED)
+    skill = root / "SKILL.md"
+    try:
+        if skill.stat().st_size <= 256 * 1024:
+            body = skill.read_text(encoding="utf-8")
+            for link in re.findall(r"\\]\\(([^)]+)\\)", body):
+                target = link.split("#", 1)[0]
+                if target.startswith(("references/", "assets/", "scripts/")) and (
+                        ".." not in Path(target).parts and not Path(target).is_absolute()):
+                    required.add(target)
+    except (OSError, UnicodeError):
+        pass
+    return sorted(required)
+
+
 def skill_path_state(path):
     try:
         if path.is_symlink() and not path.exists():
@@ -195,7 +212,8 @@ def inspect(home, workspace=None, extra_files=(), shell_scan=True):
             item["bundle"] = "not-checked"
             if item["status"] == "present":
                 root = Path(item["path"])
-                missing = [asset for asset in BUNDLE_REQUIRED if not (root / asset).is_file()]
+                missing = [asset for asset in referenced_assets(root)
+                           if not (root / asset).is_file()]
                 item["bundle"] = "incomplete" if missing else "complete"
                 item["missing_assets"] = missing
         active_var = ENV_BY_AGENT.get(cmd["agent"])
