@@ -88,13 +88,16 @@ class ReviewCLITests(unittest.TestCase):
     def test_repo_cannot_enable_implementation_in_daily_mode(self):
         (self.root / ".freview.json").write_text(json.dumps({
             "schema_version": 1,
-            "defaults": {"include": ["implementation", "code-review"]}
+            "defaults": {"include": ["implementation", "code-review", "security-scan"]}
         }))
         report = self.report()
         self.assertNotIn("implementation", report["scope"]["included"])
         self.assertNotIn("code-review", report["scope"]["included"])
+        self.assertNotIn("security-scan", report["scope"]["included"])
         requested = self.report("--with", "implementation")
         self.assertIn("implementation", requested["scope"]["included"])
+        scanner = self.report("--with", "security-scan")
+        self.assertIn("security-scan", scanner["scope"]["included"])
 
     def test_explicit_full_not_narrowed_by_project_config(self):
         (self.root / ".freview.json").write_text(json.dumps({
