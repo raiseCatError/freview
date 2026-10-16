@@ -115,17 +115,22 @@ def safe_origin_identity(root):
         if any(ch in remote for ch in ("?", "#", "\n", "\r")):
             remote = ""
         host = path = None
-        ssh = re.fullmatch(r"(?:[^@/:]+@)?([A-Za-z0-9.-]+):([^:]+)", remote)
-        if ssh:
-            host, path = ssh.group(1).lower(), ssh.group(2)
-        else:
+        # URL syntax must be parsed before SSH scp syntax: otherwise
+        # 'https://host/org/repo' is misread as host='https'.
+        if "://" in remote:
             try:
                 parsed = urlsplit(remote)
-                if parsed.scheme in ("https", "http", "ssh", "git") and not parsed.password:
+                if (parsed.scheme in ("https", "http", "ssh", "git") and
+                        not parsed.username and not parsed.password and
+                        parsed.port is None):
                     host = (parsed.hostname or "").lower()
                     path = parsed.path.lstrip("/")
             except ValueError:
                 pass
+        else:
+            ssh = re.fullmatch(r"(?:[^@/:]+@)?([A-Za-z0-9.-]+):([^:]+)", remote)
+            if ssh:
+                host, path = ssh.group(1).lower(), ssh.group(2)
         if host in recognized and path:
             path = path.rstrip("/")
             if path.endswith(".git"):
