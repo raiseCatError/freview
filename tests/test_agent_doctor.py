@@ -108,6 +108,21 @@ class AgentDoctorTests(unittest.TestCase):
         self.assertIn("references/agent-discovery.md",
                       report["skill_locations"][0]["missing_assets"])
 
+    def test_skill_referenced_new_module_must_exist_for_complete_bundle(self):
+        root = self.home / ".agents/skills/freview"
+        for asset in DOCTOR.BUNDLE_REQUIRED:
+            p = root / asset
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("ok")
+        (root / "SKILL.md").write_text(
+            "# Skill\\n[New local helper](references/local-state.md)\\n")
+        report = self.records()["opencode"]
+        self.assertFalse(report["bundle_complete"])
+        self.assertIn("references/local-state.md",
+                      report["skill_locations"][0]["missing_assets"])
+        (root / "references/local-state.md").write_text("included")
+        self.assertTrue(self.records()["opencode"]["bundle_complete"])
+
     def test_agy_checks_cross_product_and_cli_specific_paths(self):
         entries = self.records()["agy"]["skill_locations"]
         observed = {x["path"] for x in entries}
