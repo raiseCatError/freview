@@ -1,12 +1,24 @@
 #!/usr/bin/env python3
 """freview config-aware local snapshot. Read-only unless --output explicitly selects a new file."""
 import argparse
+import importlib.util
 import json
 import os
 from pathlib import Path
 import sys
+
 sys.dont_write_bytecode = True  # Avoid creating __pycache__ during an audit.
-from repo_snapshot import snapshot, text
+
+# Explicitly load the bundled sibling module. Python -I removes the script
+# directory from sys.path; silently dropping -I would weaken isolation.
+_HELPER = Path(__file__).resolve().with_name("repo_snapshot.py")
+_SPEC = importlib.util.spec_from_file_location("_freview_repo_snapshot", _HELPER)
+if _SPEC is None or _SPEC.loader is None:
+    raise RuntimeError("Unable to load bundled freview repo_snapshot.py")
+_MODULE = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(_MODULE)
+snapshot = _MODULE.snapshot
+text = _MODULE.text
 
 CATEGORIES = ("git", "tracking", "implementation", "ci", "releases", "docs",
               "community", "dependencies", "security-posture", "accessibility",
