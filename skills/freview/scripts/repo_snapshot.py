@@ -267,7 +267,14 @@ def npm_root_alignment(root):
         return {"applicable": True, "status": "unknown", "reason": str(exc)[:200]}
 
 
-def snapshot(base=None, max_branches=200):
+def snapshot(base=None, max_branches=200, categories=None):
+    # The standalone snapshot inspects all local structural categories; the
+    # config-aware helper passes explicit selected categories and must not read
+    # dependency/community files when the user excluded them.
+    selected = set(categories) if categories is not None else None
+    check_deps = selected is None or "dependencies" in selected
+    check_community = selected is None or bool(
+        selected & {"community", "docs", "accessibility"})
     root = Path(text(["rev-parse", "--show-toplevel"])).resolve()
     head = text(["rev-parse", "HEAD"], root)
     branch = text(["symbolic-ref", "-q", "--short", "HEAD"], root, True)
@@ -309,8 +316,10 @@ def snapshot(base=None, max_branches=200):
         "status": status_counts(root), "uncommitted_whitespace": uncommitted_checks,
         "worktrees": trees, "branches": branches,
         "branches_omitted": max(0, len(all_rows) - len(branches)),
-        "community": community_files(root), "ecosystems_root_only": ecosystems(root),
-        "npm_root_alignment": npm_root_alignment(root),
+        "community": community_files(root) if check_community else {},
+        "ecosystems_root_only": ecosystems(root) if check_deps else {},
+        "npm_root_alignment": (npm_root_alignment(root) if check_deps
+                               else {"applicable": False, "not_checked": True}),
         "limitations": [
             "Remote-tracking refs may be stale: no fetch was performed.",
             "Only the current worktree's dirtiness is checked; other worktree contents are not read.",
