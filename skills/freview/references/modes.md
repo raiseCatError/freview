@@ -35,7 +35,7 @@ Infer, do not hardcode:
 - Language/package: use manifest/lockfile rules appropriate to each ecosystem; avoid treating all lockfiles as mandatory.
 - Risk: local hardware, production safety, secrets and regulated data.
 
-Optionally read and validate root `.freview.json` using [project config](configuration.md) and [versioned schema](../assets/schemas/freview-config.schema.json); never execute arbitrary config commands or create files automatically. The repository's existing documentation is first-class evidence, with conflicts recorded instead of silently resolved.
+Optionally read and validate root `.freview.json` (it cannot silently select Full for bare `freview`, enable scanners, or weaken an explicit user's requested scope) using [project config](configuration.md) and [versioned schema](../assets/schemas/freview-config.schema.json); never execute arbitrary config commands or create files automatically. The repository's existing documentation is first-class evidence, with conflicts recorded instead of silently resolved.
 
 ## Budget
 
