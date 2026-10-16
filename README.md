@@ -131,12 +131,12 @@ Optionally put a validated `.freview.json` at your repository root. Declare your
 The optional no-dependency Python CLI can generate local structural metadata in JSON or Markdown:
 
 ```sh
-python3 skills/freview/scripts/review.py --mode standard --format json
-python3 skills/freview/scripts/review.py --mode full --format markdown
+python3 -I skills/freview/scripts/review.py --mode standard --format json
+python3 -I skills/freview/scripts/review.py --mode full --format markdown
 python3 skills/freview/scripts/report_tools.py previous.json current.json --format json
 ```
 
-The CLI's report is deliberately `local-snapshot`, **not a complete agent review**. The agent produces wider evidence-backed reports following [report JSON Schema](schemas/freview-report.schema.json). An explicit `--output` can write one new file under an approved scratch directory; no files are written by default. To compare daily findings, supply two reports with compatible mode, category scope and integration baseline; the validator refuses incompatible scopes and uses sanitized forge identity or a shared local Git common directory across worktrees. Explicit output files use owner-only permissions.
+The CLI supports Python isolated mode (`python3 -I`), which avoids ambient Python import paths without serving as an operating-system sandbox. The CLI's report is deliberately `local-snapshot`, **not a complete agent review**. The agent produces wider evidence-backed reports following [report JSON Schema](schemas/freview-report.schema.json). An explicit `--output` can write one new file under an approved scratch directory; no files are written by default. To compare daily findings, supply two reports with compatible mode, category scope and integration baseline; the validator refuses incompatible scopes and uses sanitized forge identity or a shared local Git common directory across worktrees. Explicit output files use owner-only permissions.
 
 Agent-generated Full/Partial JSON reports must include a per-category verification manifest; a Full report cannot claim that skipped checks or unperformed code reviews passed. The local helper remains a metadata snapshot, not a completed remote audit.
 
