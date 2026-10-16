@@ -246,10 +246,10 @@ def safe_markdown(value):
 def publication_risks(report):
     """Privacy heuristics only; passing never guarantees a safe public report."""
     patterns = (
-        ("local-user-path", re.compile(r"(?:/Users/[^/\\s]+|/home/[^/\\s]+|/Volumes/[^/\\s]+)")),
+        ("local-user-path", re.compile(r"(?:/Users/[^/\s]+|/home/[^/\s]+|/Volumes/[^/\s]+)")),
         ("file-uri", re.compile(r"file://", re.I)),
-        ("url-userinfo", re.compile(r"\\b(?:https?|ssh)://[^\\s/@:]+:[^\\s/@]+@", re.I)),
-        ("credential-shaped-text", re.compile(r"\\b(?:github_pat_|ghp_|gho_|sk-)[A-Za-z0-9_-]{12,}")),
+        ("url-userinfo", re.compile(r"\b(?:https?|ssh)://[^\s/@:]+:[^\s/@]+@", re.I)),
+        ("credential-shaped-text", re.compile(r"\b(?:github_pat_|ghp_|gho_|sk-)[A-Za-z0-9_-]{12,}")),
         ("private-key-marker", re.compile(r"-----BEGIN (?:OPENSSH|RSA|EC|DSA|PRIVATE) PRIVATE KEY-----")),
     )
     found = set()
@@ -262,7 +262,7 @@ def publication_risks(report):
             for child in value:
                 inspect(child)
         elif isinstance(value, str):
-            if any(unicodedata.category(ch) == "Cc" and ch not in "\\r\\n\\t"
+            if any(unicodedata.category(ch) == "Cc" and ch not in "\r\n\t"
                    or ord(ch) in (0x202A, 0x202B, 0x202D, 0x202E, 0x2066, 0x2067, 0x2068, 0x2069)
                    for ch in value):
                 found.add("terminal-or-bidi-control")
