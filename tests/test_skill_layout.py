@@ -26,7 +26,7 @@ class SkillLayoutTests(unittest.TestCase):
         for ref in references:
             with self.subTest(ref=ref):
                 self.assertTrue((SKILL_DIR / ref).is_file())
-        for tool in ("repo_snapshot.py", "review.py", "report_tools.py"):
+        for tool in ("repo_snapshot.py", "review.py", "report_tools.py", "duplicates.py"):
             self.assertTrue((SKILL_DIR / "scripts" / tool).is_file())
         for asset in ("assets/schemas/freview-config.schema.json",
                       "assets/schemas/freview-report.schema.json",
@@ -46,6 +46,18 @@ class SkillLayoutTests(unittest.TestCase):
                 self.assertEqual((SKILL_DIR / package_path).read_bytes(),
                                  (ROOT / source_path).read_bytes())
 
+
+    def test_specialist_catalog_has_only_vetted_tools(self):
+        import json
+        catalog = json.loads((SKILL_DIR / "assets/catalog/specialists.json").read_text())
+        repos = [entry.get("url", "") for entry in catalog["tools"]]
+        self.assertFalse(any("amragl/codebase-review" in url for url in repos))
+        self.assertFalse(any("todogroup/repolinter" in url for url in repos))
+        self.assertTrue(any("claude.com/plugins/code-review" in url for url in repos))
+        self.assertTrue(any("openai/codex" in entry.get("repository", "") for entry in catalog["tools"]))
+        for entry in catalog["tools"]:
+            if entry.get("stars") is not None:
+                self.assertGreaterEqual(entry["stars"], 1000)
 
     def test_no_project_specific_policy_embedded(self):
         skill = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
