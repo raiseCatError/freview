@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/raiseCatError/freview/blob/main/schemas/freview-report.schema.json",
+  "title": "freview report format v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generator",
+    "report_kind",
+    "timestamp_utc",
+    "mode_requested",
+    "scope",
+    "repository",
+    "findings",
+    "not_observed"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "generator": {
+      "type": "string"
+    },
+    "report_kind": {
+      "enum": [
+        "local-snapshot",
+        "partial-audit",
+        "full-audit"
+      ]
+    },
+    "timestamp_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "mode_requested": {
+      "enum": [
+        "quick",
+        "standard",
+        "full",
+        "targeted"
+      ]
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "included",
+        "excluded"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "included": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excluded": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "specialists": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "coverage": {
+          "type": "string"
+        }
+      }
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "root": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remote": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "base_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "base_sha": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "head_sha": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "severity",
+          "category",
+          "summary",
+          "status",
+          "evidence"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "P0",
+              "P1",
+              "P2",
+              "informational"
+            ]
+          },
+          "category": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "next_action": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "not_observed": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "local_snapshot": {
+      "type": "object",
+      "description": "Optional detailed local metadata. No inference about remote state.",
+      "additionalProperties": true
+    },
+    "human_review_required": {
+      "type": "boolean"
+    },
+    "reference_report": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}
