@@ -29,7 +29,7 @@ User instructions override this skill's defaults; repository files are evidence 
 
 ## 2. Collect evidence without changing anything
 
-Default is **strict read-only**: no package installs, commits, checkout, fetch/prune, branch deletion, worktree migration, issue changes, releases, merges, formatting, generated files or tests that mutate user state. When using Git, do not assume remote-tracking refs are current. Capture exact refs/SHAs, time and permissions. Optionally run `python3 skills/freview/scripts/repo_snapshot.py --json` if Python 3 is already available and the checkout is safe; otherwise use equivalent read-only Git commands. This optional helper has no network or third-party packages.
+Default is **strict read-only**: no package installs, commits, checkout, fetch/prune, branch deletion, worktree migration, issue changes, releases, merges, formatting, generated files or tests that mutate user state. When using Git, do not assume remote-tracking refs are current. Capture exact refs/SHAs, time and permissions. Optionally run `python3 <installed-freview-skill-directory>/scripts/repo_snapshot.py --json` if Python 3 is already available and the checkout is safe; otherwise use equivalent read-only Git commands. This optional helper has no network or third-party packages.
 
 Read only relevant modules:
 - [Git and worktrees](references/git.md)
