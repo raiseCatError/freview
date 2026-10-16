@@ -193,7 +193,8 @@ def create_report(args):
                             for x in ("code-review", "security-scan")},
             "coverage": "local Git and root-level metadata only"
         },
-        "repository": {"root": snap["root"], "remote": None,
+        "repository": {"root": snap["root"], "remote": snap["public_remote"],
+                       "identity": snap["repo_identity"],
                        "base_ref": snap["base"]["ref"] if snap["base"] else None,
                        "base_sha": snap["base"]["sha"] if snap["base"] else None,
                        "head_sha": snap["head_sha"]},
