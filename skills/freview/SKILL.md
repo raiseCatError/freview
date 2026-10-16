@@ -13,7 +13,7 @@ Run only the categories the user requests. Accept conversational invocations:
 
 - `freview` → **standard daily review** without prompting when the repository and requested scope are clear. It does not run a deep code-quality review.
 - `freview quick` → a short, read-only factual inventory and major red flags.
-- `freview standard` → discovery + Git + issue/PR/release reconciliation (where hosted) + basic documentation, community and dependencies.
+- `freview standard` → discovery + Git + issue/PR/release/CI **metadata** reconciliation (where hosted) + basic documentation, community and dependencies. **No deep code review, no source-level implementation audit, no code changes or test execution.** Label code-unverified status claims explicitly.
 - `freview full` → all applicable status/hygiene/release categories **PLUS deep code-quality review by default**, preferring an already-installed trusted codebase-review skill or another appropriate specialist; fall back to a bounded native code review if unavailable. A full run can be costly, but never authorizes installs, edits, source uploads or destructive tools. External security scanning remains opt-in.
 - `freview full excluding security, dependencies`; `freview only git, issues, releases`; `freview --with code-review`; `freview --with security-scan`; `freview --base release/next`.
 
@@ -41,11 +41,11 @@ Read only relevant modules:
 - [Repository hygiene and dependency signals](references/hygiene.md)
 - [Specialist delegates and boundaries](references/specialists.md)
 
-If GitHub/GitLab/another forge is available, traverse pages for **full** inventory; inspect open and recently closed records, draft PRs and exact-head CI. Cite URLs, commit SHAs, paths and test names. If local filesystem access isn't available, never claim to have checked the user's working tree. Use source-level spot checks proportionate to the mode.
+If GitHub/GitLab/another forge is available, traverse pages for **full** inventory; inspect open and recently closed records, draft PRs and exact-head CI. Cite URLs, commit SHAs, paths and test names. If local filesystem access isn't available, never claim to have checked the user's working tree. In **Standard**, use metadata, file lists, manifests and existing CI/PR receipts without reading source implementation bodies; mark feature correctness as unverified. In **Full**, inspect relevant source/implementation wiring and tests, then conduct a code-quality review. Exclusions may narrow either mode.
 
 ## 3. Reconcile reality, not labels
 
-Trace each selected feature or acceptance criterion across **requirement → actual reachable implementation → regression coverage → exact-commit checks → integration ancestry → human acceptance → published artifact**. Distinguish:
+In Full (or an explicit targeted implementation review), trace each selected feature or acceptance criterion across **requirement → actual reachable implementation → regression coverage → exact-commit checks → integration ancestry → human acceptance → published artifact**. Distinguish:
 `proposed`, `research complete`, `untouched within inspected scope`, `partially implemented`, `implemented in isolated branch`, `integrated candidate`, `automated verified`, `human verified`, `released`, `intentionally deferred`, `unknown`.
 
 A closed issue is not proof the feature shipped. Unchecked acceptance boxes are review leads, not proof code is missing. Standalone libraries without application wiring aren't available features. CI failure remains a failure even when *suspected* flaky. A local test or synthetic screenshot is not real-device/physical acceptance. Tags and published releases must be verified independently of a candidate version file. Squash/cherry-pick can defeat naive ancestry rules.
