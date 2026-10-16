@@ -29,3 +29,15 @@ For large inventories, organize by area; provide counts **only for the enumerate
 ## Completion wording
 
 Never say “repository is completely clean” from incomplete evidence. Say “No findings in the selected scope as of SHA X; excluded/unobservable categories Y.” Do not auto-open tickets or fix anything.
+
+## Versioned JSON and daily deltas
+
+The portable [report.schema.json](../../../schemas/freview-report.schema.json) defines report envelope, exact SHA/source scope, category coverage, evidence-linked findings, severity separate from lifecycle status, and explicit unobserved facts. Agent-generated reports must distinguish `report_kind=full-audit`, `partial-audit` and `local-snapshot`. The companion helper always emits `local-snapshot`; only the actual agent investigation can justify a wider audit.
+
+Use `python3 <installed-skill>/scripts/review.py --mode standard --format json` to generate a local snapshot to stdout. Pass an explicit `--output /approved/scratch/report.json` to write one new report file; the command never overwrites existing files or creates directories.
+
+Use `python3 <installed-skill>/scripts/report_tools.py REPORT.json` to validate the supported common report fields, and `python3 <installed-skill>/scripts/report_tools.py PRIOR.json CURRENT.json` to compare new/resolved/changed finding IDs. Add `--format json` for machine-readable delta. This standard-library validator is deliberately a limited structural validator, not a complete JSON Schema validator; downstream consumers may enforce the complete published schema separately.
+
+Only compare reports with matching repository identity, report kind and category coverage. A disappearing finding is a candidate for revalidation, not proof of remediation if investigation coverage differs. Without a supplied prior report, never pretend a previous daily run occurred.
+
+Do not automatically publish a local report to GitHub or include sensitive path/history content in public artifacts. The latest report always names excluded categories and unobserved evidence.
