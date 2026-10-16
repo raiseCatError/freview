@@ -105,6 +105,35 @@ class SnapshotTests(unittest.TestCase):
         self.assertGreater(result["status"]["tracked_changes"], 0)
         self.assertFalse(marker.exists(), "Git clean filter executed in read-only audit")
 
+    def test_inherited_git_trace_and_config_cannot_execute_or_write(self):
+        trace_marker = Path(self.tmp.name) / "unexpected-git-trace"
+        hook_marker = Path(self.tmp.name) / "unexpected-hook"
+        hook = Path(self.tmp.name) / "environment-hook.sh"
+        hook.write_text("#!/bin/sh\nprintf hit >> '" + str(hook_marker) + "'\n")
+        hook.chmod(0o700)
+        env = os.environ.copy()
+        env.update({
+            "GIT_TRACE": str(trace_marker),
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "core.fsmonitor",
+            "GIT_CONFIG_VALUE_0": str(hook),
+        })
+        p = subprocess.run([sys.executable, str(SCRIPT), "--json"],
+                           cwd=self.root, env=env, text=True, capture_output=True,
+                           timeout=30)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertFalse(trace_marker.exists(), "Inherited GIT_TRACE wrote a file")
+        self.assertFalse(hook_marker.exists(), "Inherited git config ran executable")
+
+    def test_case_sensitive_forge_identity_is_not_folded(self):
+        run(self.root, "git", "remote", "add", "origin",
+            "https://gitlab.com/ExampleOrg/CaseSensitiveRepo.git")
+        got = self.invoke()
+        self.assertEqual(
+            got["repo_identity"],
+            "forge:gitlab.com/ExampleOrg/CaseSensitiveRepo"
+        )
+
     def test_malformed_npm_files_return_unknown_instead_of_crash(self):
         (self.root / "package.json").write_text("[]")
         (self.root / "package-lock.json").write_text("{}")

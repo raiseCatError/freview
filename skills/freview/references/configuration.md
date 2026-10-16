@@ -37,7 +37,7 @@ See machine-readable [JSON Schema](../assets/schemas/freview-config.schema.json)
 
 ### Precedence
 
-**User request > explicit invocation flags > validated project policy > generic defaults.** Exclusion takes precedence over inclusion. `freview full` includes code review by default unless the user or validated config explicitly excludes it, or sets `specialists.code_review=off`. The agent must state if the config excluded it. No configuration can override the review's read-only safety boundaries or authorize downloads, filesystem changes, network uploads or secrets access.
+**Explicit user mode/scope > validated project preferences > generic defaults.** Bare `freview` is always Standard (or Quick if configured), even if a repository declares `defaults.mode=full`; Full and source review require explicit user selection. A repository cannot enable scans, force code review in Standard, or silently exclude categories from a user-requested Full/Standard run. Only explicit user exclusions can narrow the requested scope. A user-requested `freview full` includes code review unless the user explicitly excludes it. No config can authorize downloads, writes, unbounded tests or secrets access. Implicit `.freview.json` symlinks are refused by the CLI; pass `--config` deliberately to use a linked policy.
 
 The `development_branch` is a hint to verify, not a remote fetch or an unconditional checkout. Wildcards in release branch **descriptions** are patterns for agents to investigate; never interpolate them into a shell or evaluate them as code.
 

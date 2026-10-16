@@ -46,7 +46,12 @@ def _disabled_filter_settings(cwd, env):
 
 
 def git(args, cwd=None, allowed_failure=False):
-    env = os.environ.copy()
+    # Git's inherited environment can override repository discovery/config
+    # and activate trace-file writes. Reconstruct a safe Git-specific env rather
+    # than allowing caller-provided GIT_CONFIG_*, GIT_TRACE*, GIT_INDEX_FILE,
+    # GIT_EXTERNAL_DIFF or other unexpected GIT_* settings through.
+    env = {key: value for key, value in os.environ.items()
+           if not key.startswith("GIT_")}
     # Git's fsmonitor setting can execute arbitrary local programs even for
     # 'git status'. Force off at invocation time; do not trust repository config.
     env["GIT_OPTIONAL_LOCKS"] = "0"
@@ -82,7 +87,7 @@ def text(args, cwd=None, allowed_failure=False):
 
 
 def commit(ref, root):
-    return text(["rev-parse", "--verify", "--quiet", ref + "^{commit}"], root, True)
+    return text(["rev-parse", "--verify", "--quiet", "--end-of-options", ref + "^{commit}"], root, True)
 
 
 def divergence(base, head, root):
@@ -110,17 +115,22 @@ def safe_origin_identity(root):
         if any(ch in remote for ch in ("?", "#", "\n", "\r")):
             remote = ""
         host = path = None
-        ssh = re.fullmatch(r"(?:[^@/:]+@)?([A-Za-z0-9.-]+):([^:]+)", remote)
-        if ssh:
-            host, path = ssh.group(1).lower(), ssh.group(2)
-        else:
+        # URL syntax must be parsed before SSH scp syntax: otherwise
+        # 'https://host/org/repo' is misread as host='https'.
+        if "://" in remote:
             try:
                 parsed = urlsplit(remote)
-                if parsed.scheme in ("https", "http", "ssh", "git") and not parsed.password:
+                if (parsed.scheme in ("https", "http", "ssh", "git") and
+                        not parsed.username and not parsed.password and
+                        parsed.port is None):
                     host = (parsed.hostname or "").lower()
                     path = parsed.path.lstrip("/")
             except ValueError:
                 pass
+        else:
+            ssh = re.fullmatch(r"(?:[^@/:]+@)?([A-Za-z0-9.-]+):([^:]+)", remote)
+            if ssh:
+                host, path = ssh.group(1).lower(), ssh.group(2)
         if host in recognized and path:
             path = path.rstrip("/")
             if path.endswith(".git"):
@@ -131,7 +141,8 @@ def safe_origin_identity(root):
                 re.fullmatch(r"[A-Za-z0-9_.-]+", v) and v not in (".", "..")
                 for v in segments
             ):
-                return {"identity": "forge:" + host + "/" + path.lower(),
+                return {"identity": "forge:" + host + "/" +
+                        (path.lower() if host == "github.com" else path),
                         "public_remote": "https://" + host + "/" + path}
     common = text(["rev-parse", "--git-common-dir"], root, True)
     if not common:
@@ -256,7 +267,14 @@ def npm_root_alignment(root):
         return {"applicable": True, "status": "unknown", "reason": str(exc)[:200]}
 
 
-def snapshot(base=None, max_branches=200):
+def snapshot(base=None, max_branches=200, categories=None):
+    # The standalone snapshot inspects all local structural categories; the
+    # config-aware helper passes explicit selected categories and must not read
+    # dependency/community files when the user excluded them.
+    selected = set(categories) if categories is not None else None
+    check_deps = selected is None or "dependencies" in selected
+    check_community = selected is None or bool(
+        selected & {"community", "docs", "accessibility"})
     root = Path(text(["rev-parse", "--show-toplevel"])).resolve()
     head = text(["rev-parse", "HEAD"], root)
     branch = text(["symbolic-ref", "-q", "--short", "HEAD"], root, True)
@@ -298,8 +316,10 @@ def snapshot(base=None, max_branches=200):
         "status": status_counts(root), "uncommitted_whitespace": uncommitted_checks,
         "worktrees": trees, "branches": branches,
         "branches_omitted": max(0, len(all_rows) - len(branches)),
-        "community": community_files(root), "ecosystems_root_only": ecosystems(root),
-        "npm_root_alignment": npm_root_alignment(root),
+        "community": community_files(root) if check_community else {},
+        "ecosystems_root_only": ecosystems(root) if check_deps else {},
+        "npm_root_alignment": (npm_root_alignment(root) if check_deps
+                               else {"applicable": False, "not_checked": True}),
         "limitations": [
             "Remote-tracking refs may be stale: no fetch was performed.",
             "Only the current worktree's dirtiness is checked; other worktree contents are not read.",

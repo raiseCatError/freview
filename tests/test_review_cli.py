@@ -61,8 +61,9 @@ class ReviewCLITests(unittest.TestCase):
                   "specialists": {"code_review": "off"}}
         (self.root / ".freview.json").write_text(json.dumps(policy))
         report = self.report()
-        self.assertEqual(report["mode_requested"], "full")
+        self.assertEqual(report["mode_requested"], "standard")
         self.assertNotIn("code-review", report["scope"]["included"])
+        self.assertNotIn("implementation", report["scope"]["included"])
         self.assertNotIn("ci", report["scope"]["included"])
         report = self.report("--mode", "full")
         self.assertIn("code-review", report["scope"]["included"])
@@ -128,6 +129,37 @@ class ReviewCLITests(unittest.TestCase):
         self.assertEqual(known["repository"]["remote"],
                          "https://github.com/ExampleOrg/ExampleRepo")
 
+    def test_project_full_default_cannot_escalate_unattended_mode(self):
+        (self.root / ".freview.json").write_text(json.dumps({
+            "schema_version": 1,
+            "defaults": {"mode": "full", "include": ["implementation", "code-review", "security-scan"]}
+        }))
+        report = self.report()
+        self.assertEqual(report["mode_requested"], "standard")
+        self.assertNotIn("code-review", report["scope"]["included"])
+        self.assertNotIn("implementation", report["scope"]["included"])
+        self.assertNotIn("security-scan", report["scope"]["included"])
+        full = self.report("--mode", "full")
+        self.assertIn("code-review", full["scope"]["included"])
+
+    def test_project_config_symlink_requires_explicit_selection(self):
+        outside = Path(self.tmp.name) / "outside.json"
+        outside.write_text('{"schema_version": 1}')
+        (self.root / ".freview.json").symlink_to(outside)
+        denied = self.call("--format", "json", ok=False)
+        self.assertEqual(denied.returncode, 2)
+        self.assertIn("symlink", denied.stderr)
+        approved = self.report("--config", str(outside))
+        self.assertEqual(approved["mode_requested"], "standard")
+
+    def test_explicit_only_security_scan_beats_project_preference(self):
+        (self.root / ".freview.json").write_text(json.dumps({
+            "schema_version": 1, "specialists": {"security_scan": "off"}
+        }))
+        report = self.report("--only", "security-scan")
+        self.assertEqual(report["scope"]["included"], ["security-scan"])
+        self.assertEqual(report["scope"]["specialists"]["security-scan"], "agent-review-required")
+
     def test_only_selection(self):
         report = self.report("--only", "git,releases")
         self.assertEqual(report["scope"]["included"], ["git", "releases"])
@@ -150,6 +182,17 @@ class ReviewCLITests(unittest.TestCase):
         self.assertEqual(json.loads(outfile.read_text())["report_kind"], "local-snapshot")
         self.assertEqual(stat.S_IMODE(outfile.stat().st_mode), 0o600)
         self.assertEqual(self.call("--output", str(outfile), ok=False).returncode, 2)
+
+    def test_only_git_skips_dependency_and_community_file_inspection(self):
+        (self.root / "package.json").write_text('{"dependencies":{"x":"1"}}')
+        (self.root / "package-lock.json").write_text('{"packages":{"":{"dependencies":{"x":"2"}}}}')
+        git_only = self.report("--only", "git")
+        self.assertEqual(git_only["scope"]["included"], ["git"])
+        self.assertTrue(git_only["local_snapshot"]["npm_root_alignment"]["not_checked"])
+        self.assertEqual(git_only["local_snapshot"]["ecosystems_root_only"], {})
+        self.assertEqual(git_only["local_snapshot"]["community"], {})
+        with_deps = self.report("--only", "dependencies")
+        self.assertEqual(with_deps["local_snapshot"]["npm_root_alignment"]["status"], "drift")
 
     def test_unknown_category_refuses(self):
         self.assertEqual(self.call("--exclude", "wizardry", ok=False).returncode, 2)
