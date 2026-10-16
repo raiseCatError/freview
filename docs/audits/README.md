@@ -6,7 +6,6 @@ An evidence log, **not a list of software features or an endorsement of any agen
 | --- | --- | --- |
 | [Historical freview-on-freview audit (draft PR #8)](https://github.com/raiseCatError/freview/pull/8) | AGY 1.4.0 / Gemini 3.8 Flash High | Full-mode native source review, verified local helper execution; **manual SKILL.md activation**, not native AGY injection; agent audit marked `partial-audit`. Preserve original baseline and later tested SHA. |
 | [Independent cross-review and NMSh field evidence](2026-10-17-independent-cross-review.md) | GPT-6 independent freview source inspection + external AGY NMSh run | Independent source-level findings, evidence reconciliation, explicit disputed claims and deferred hardening gates. No freview skill invoked for the GPT source pass; no independent execution on the user's Mac. |
-
 | [Post-integration exact-head verification](2026-10-17-integration-receipt.md) | Combined `main` at `3870b786` | Four PRs integrated; 93/93 Python tests on both Ubuntu and macOS with exact-head CI; real native-agent activation remains pending. Includes a [physical acceptance checklist](../testing/agent-activation-acceptance.md). |
 
 The NMSh field-test generated four **private physical-host documents** (Markdown/JSON audit, freview product field critique and exact-command manifest). Those documents can include local worktree paths and unreleased project state. They are **not published verbatim** to the public repository; the cross-review provides a bounded, privacy-conscious summary instead.
