@@ -57,6 +57,36 @@ class ReportTests(unittest.TestCase):
         self.assertEqual([x["id"] for x in out["absent_from_new_report"]], ["a"])
         self.assertEqual(out["unchanged_count"], 1)
 
+    def test_publication_privacy_lint_flags_paths_and_secret_shapes_without_echoing(self):
+        sample_report = sample()
+        sample_report["repository"]["root"] = "/Users/example-user/private-worktree"
+        sample_report["repository"]["remote"] = (
+            "https://example:supersecret@git.example.invalid/private/repo"
+        )
+        sample_report["not_observed"].append(
+            "A test token: github_pat_abcdefghijklmnopqrstuvwxyz012345")
+        path = self.write("private.json", sample_report)
+        p = subprocess.run([sys.executable, str(SCRIPT), "--check-public",
+                            "--format", "json", path],
+                           text=True, capture_output=True)
+        self.assertEqual(p.returncode, 3, p.stderr)
+        output = json.loads(p.stdout)
+        self.assertIn("local-user-path", output["obvious_risks"])
+        self.assertIn("url-userinfo", output["obvious_risks"])
+        self.assertIn("credential-shaped-text", output["obvious_risks"])
+        self.assertNotIn("supersecret", p.stdout)
+        self.assertNotIn("example-user", p.stdout)
+
+    def test_publication_lint_does_not_certify_safe(self):
+        path = self.write("ordinary.json", sample())
+        p = subprocess.run([sys.executable, str(SCRIPT), "--check-public",
+                            "--format", "json", path],
+                           text=True, capture_output=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        obj = json.loads(p.stdout)
+        self.assertTrue(obj["no_obvious_risks_detected"])
+        self.assertIn("does NOT certify", obj["warning"])
+
     def test_utc_field_rejects_non_utc_offset(self):
         data = sample()
         data["timestamp_utc"] = "2026-10-17T03:00:00+05:30"
