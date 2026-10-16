@@ -47,8 +47,8 @@ class SnapshotTests(unittest.TestCase):
             run(self.root, "git", "branch", "feature/budget-" + str(i))
         report = SNAPSHOT.snapshot(max_branches=2, max_divergences=0)
         self.assertEqual(len(report["branches"]), 2)
-        self.assertTrue(report["branches_omitted_is_lower_bound"])
-        self.assertEqual(report["branches_omitted"], 1)
+        self.assertFalse(report["branches_omitted_is_lower_bound"])
+        self.assertEqual(report["branches_omitted"], 5)
 
     def test_clean_repo_and_explicit_base(self):
         result = self.invoke("--base", "main")
