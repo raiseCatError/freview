@@ -125,7 +125,7 @@ def referenced_assets(root):
     try:
         if skill.stat().st_size <= 256 * 1024:
             body = skill.read_text(encoding="utf-8")
-            for link in re.findall(r"\\]\\(([^)]+)\\)", body):
+            for link in re.findall(r"\]\(([^)]+)\)", body):
                 target = link.split("#", 1)[0]
                 if target.startswith(("references/", "assets/", "scripts/")) and (
                         ".." not in Path(target).parts and not Path(target).is_absolute()):
