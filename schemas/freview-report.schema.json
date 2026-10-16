@@ -150,6 +150,72 @@
           },
           "next_action": {
             "type": "string"
+          },
+          "remediation": {
+            "type": "object",
+            "description": "Non-executed practical repair plan, based on evidence. Required for confirmed actionable agent findings.",
+            "additionalProperties": false,
+            "required": [
+              "summary",
+              "steps",
+              "verification",
+              "confidence"
+            ],
+            "properties": {
+              "summary": {
+                "type": "string"
+              },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1
+              },
+              "verification": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "confidence": {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              },
+              "owner": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "prerequisites": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "risks": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "estimated_effort": {
+                "enum": [
+                  "small",
+                  "medium",
+                  "large",
+                  "unknown"
+                ]
+              },
+              "requires_approval": {
+                "type": "boolean",
+                "const": true
+              }
+            }
           }
         }
       }
@@ -173,6 +239,138 @@
         "string",
         "null"
       ]
+    },
+    "duplicate_clusters": {
+      "type": "array",
+      "description": "Only work-item/plan/PR/doc delivery duplicates, never code clones. Candidates are not confirmed.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "item_urls",
+          "status",
+          "reason",
+          "evidence"
+        ],
+        "properties": {
+          "item_urls": {
+            "type": "array",
+            "minItems": 2,
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "enum": [
+              "confirmed",
+              "candidate",
+              "related",
+              "not-duplicate"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "canonical_recommendation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "next_action": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "remediation_plan": {
+      "type": "array",
+      "description": "Dependency-ordered, approval-required proposed repairs; never performed by freview",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "finding_ids",
+          "action",
+          "priority",
+          "verification",
+          "requires_approval"
+        ],
+        "properties": {
+          "finding_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "action": {
+            "type": "string"
+          },
+          "priority": {
+            "enum": [
+              "P0",
+              "P1",
+              "P2",
+              "informational"
+            ]
+          },
+          "prerequisites": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "verification": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "owner": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requires_approval": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      }
+    },
+    "implementation_suggestions_requested": {
+      "type": "boolean",
+      "description": "Explicit opt-in only for future or never-implemented features"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "report_kind": {
+            "enum": [
+              "partial-audit",
+              "full-audit"
+            ]
+          }
+        },
+        "required": [
+          "report_kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "remediation_plan",
+          "duplicate_clusters"
+        ]
+      }
+    }
+  ]
 }
