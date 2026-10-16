@@ -31,8 +31,9 @@ jobs:
         run: python3 skills/freview/scripts/repo_snapshot.py --json > /dev/null
       - name: Exercise standard and full local reports
         run: |
-          python3 skills/freview/scripts/review.py --mode standard --format json > /dev/null
-          python3 skills/freview/scripts/review.py --mode full --format json > /dev/null
+          python3 -I skills/freview/scripts/review.py --mode quick --format json > /dev/null
+          python3 -I skills/freview/scripts/review.py --mode standard --format json > /dev/null
+          python3 -I skills/freview/scripts/review.py --mode full --format json > /dev/null
       - name: Validate freview's own UTC self-audit
         run: python3 skills/freview/scripts/report_tools.py docs/freview-reviews-freview.json --format json > /dev/null
       - name: Exercise read-only agent discovery

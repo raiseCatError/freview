@@ -38,6 +38,29 @@ class ReviewCLITests(unittest.TestCase):
     def report(self, *args):
         return json.loads(self.call("--format", "json", *args).stdout)
 
+    def test_python_isolated_mode_loads_bundled_snapshot_without_path_fallback(self):
+        # Regression: python -I removes CLI's sibling script directory from
+        # sys.path, so ordinary 'from repo_snapshot import ...' used to fail.
+        for mode in ("quick", "standard", "full"):
+            with self.subTest(mode=mode):
+                result = run(self.root, sys.executable, "-I", str(CLI),
+                             "--mode", mode, "--format", "json")
+                report = json.loads(result.stdout)
+                self.assertEqual(report["mode_requested"], mode)
+                self.assertEqual(report["report_kind"], "local-snapshot")
+                self.assertIn("head_sha", report["repository"])
+                self.assertIn("local_snapshot", report)
+
+    def test_isolated_cli_from_unrelated_directory_does_not_import_repo_modules(self):
+        # The CLI should load its paired helper, not anything from cwd.
+        (self.root / "repo_snapshot.py").write_text(
+            "raise RuntimeError('untrusted working directory imported')\n")
+        result = run(self.root, sys.executable, "-I", str(CLI),
+                     "--mode", "quick", "--format", "json")
+        report = json.loads(result.stdout)
+        self.assertEqual(report["report_kind"], "local-snapshot")
+        self.assertNotIn("untrusted working directory imported", result.stderr)
+
     def test_standard_default_has_no_code_review(self):
         report = self.report()
         self.assertEqual(report["report_kind"], "local-snapshot")
