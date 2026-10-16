@@ -33,7 +33,7 @@ The **portable freview skill** discovers an unfamiliar repository first. An opti
 }
 ```
 
-See machine-readable [JSON Schema](../../../schemas/freview-config.schema.json). This schema is limited to known keys and bounded values. The optional Python helper validates its own supported keys and refuses malformed or unsupported config before running; an agent should apply the same security model.
+See machine-readable [JSON Schema](../assets/schemas/freview-config.schema.json). This schema is limited to known keys and bounded values. The optional Python helper validates its own supported keys and refuses malformed or unsupported config before running; an agent should apply the same security model.
 
 ### Precedence
 
