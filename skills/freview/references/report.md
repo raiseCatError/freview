@@ -13,6 +13,12 @@ Always include:
 - A small prioritized list of *non-destructive* next actions; no assumption user approves fixes.
 - An explicit **Not checked / Not observable** table or paragraph.
 
+## Verification manifest (required for agent audits)
+
+A `partial-audit` or `full-audit` JSON report requires `verification_manifest` entries for **each selected category**. Every entry states `category`, `status` (`verified`, `partial`, `not-observed`, or `not-applicable`), evidence/source links and, when applicable, exact ref and tool/version. `verified` means the promised *review/check was actually performed*, not that the project has no defects. `not-applicable` requires an explanation.
+
+A `full-audit` may use that label only if all selected categories were reviewed or genuinely inapplicable, with code review actually evidenced when selected. Otherwise issue a `partial-audit` and explicitly record omissions. Never claim Full simply because an agent was instructed to perform it or a local metadata helper succeeded.
+
 ## Severity ≠ status
 
 Priority P0/P1/P2 describes urgency/impact. Status describes actual lifecycle stage: research, isolated, integrated candidate, verified, human accepted, shipped, deferred, unknown. An intentionally unimplemented feature is not automatically a P0 defect; a false “released and safe” claim can be.
