@@ -108,7 +108,10 @@ def scope(args, config):
     for name in with_categories:
         if name not in selected:
             selected.append(name)
-    excluded = set(prefs.get("exclude", []))
+    # An explicit user mode/scope takes precedence over repository defaults.
+    excluded = set(prefs.get("exclude", [])) if not (
+        args.mode is not None or only or with_categories
+    ) else set()
     specialist = config.get("specialists", {})
     explicit_code = ("code-review" in with_categories or "code-review" in only
                      or args.mode == "full")
@@ -119,7 +122,7 @@ def scope(args, config):
         excluded.add("code-review")
     if explicit_code:
         excluded.discard("code-review")
-    if specialist.get("security_scan") == "off":
+    if specialist.get("security_scan") == "off" and "security-scan" not in with_categories:
         excluded.add("security-scan")
     excluded -= set(with_categories)
     excluded.update(categories(args.exclude))
