@@ -176,7 +176,10 @@ def create_report(args):
                        "head_sha": snap["head_sha"]},
         "findings": findings, "not_observed": unobserved, "local_snapshot": snap,
         "human_review_required": cfg.get("acceptance", {}).get("human_qa_required", False),
-        "reference_report": None
+        "reference_report": None,
+        "duplicate_clusters": [],
+        "remediation_plan": [],
+        "implementation_suggestions_requested": bool(args.suggest_implementation)
     }
     return report, cfgpath if cfg else None
 
@@ -213,6 +216,7 @@ def main():
     ap.add_argument("--only", action="append", default=[])
     ap.add_argument("--exclude", action="append", default=[])
     ap.add_argument("--with", dest="with_categories", action="append", default=[])
+    ap.add_argument("--suggest-implementation", action="store_true", help="Request future feature ideas from an agent; local helper does not generate them")
     ap.add_argument("--format", choices=("json", "markdown"), default="markdown")
     ap.add_argument("--output", help="explicit output path; stdout is default (no file writes)")
     args = ap.parse_args()
