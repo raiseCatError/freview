@@ -9,16 +9,16 @@
 | full | comprehensive evidence review | paginate all accessible scoped records | trace material acceptance and CI, never unbounded execution |
 | targeted | selected categories/refs/issues | only requested scope | enough to substantiate claim |
 
-“Full” covers all **applicable structural checks**: git, tracking, implementation, CI, releases, docs, community, dependencies, security-posture, accessibility. It does **not** silently run deep code review, external security scanners, dependency installers or destructive cleanup. Those require `--with code-review` and/or `--with security-scan`. In quick, report partial remote coverage rather than describing a truncated result as the total backlog.
+“Full” covers all **applicable structural checks**: git, tracking, implementation, CI, releases, docs, community, dependencies, security-posture, accessibility. It **includes** deep code review by default, preferring an installed trusted specialist and otherwise a bounded native code review. It never automatically installs a skill/tool, runs high-risk scans or uploads source. External vulnerability/security scans still require `--with security-scan`, and exclusions take precedence over mode defaults. In quick, report partial remote coverage rather than describing a truncated result as the total backlog.
 
 Category aliases in natural language: `git` includes worktrees and ancestry; `tracking` includes issues, milestones and PRs; `implementation` traces feature reachability and tests; `docs` checks release and help accuracy; `community` includes contributor/onboarding standards; `dependencies` includes manifests, lockfiles and dependency graph; `security-posture` is documentary/configuration evidence, not a vulnerability verdict.
 
 ## Conversational interface
 
-- Bare `freview`: ask **“Quick, standard (recommended), or full? Deep code review or external security scan are off unless you opt in.”** One question, not a lengthy form. If agent cannot ask, choose standard and explain.
+- Bare `freview`: run **standard**, the recommended daily review, without an extra question when the repository is identifiable. Ask one concise question only if essential inputs are genuinely missing. Deep code review is off in standard, on in full; external security scanning is off unless explicitly included.
 - `freview full excluding ci and code review` → full without those categories. Exclude always wins over default inclusion.
 - `freview only git, releases` → targeted; do not scan other areas just to fill a report.
-- `freview full --with code-review` → full plus specialist deep code review, only when a suitable trusted/installed specialist is available or user authorizes a native review.
+- `freview full` → include deep code-quality review, using a trusted installed specialist if available; fall back to a native code review if no usable specialist exists. `freview standard --with code-review` also enables it.
 - `freview quick --base origin/develop` → use the specified ref if it exists; otherwise report inability, don't quietly substitute a different branch.
 - `freview full on repo owner/repo` → remote-only if no local files; do not pretend to have local worktrees.
 
@@ -33,7 +33,7 @@ Infer, do not hardcode:
 - Language/package: use manifest/lockfile rules appropriate to each ecosystem; avoid treating all lockfiles as mandatory.
 - Risk: local hardware, production safety, secrets and regulated data.
 
-Do not auto-create or parse custom config files. Optional future project policy overlay may be introduced after its schema/trust boundaries are reviewed. The repository's existing documentation is first-class evidence, with conflicts recorded instead of silently resolved.
+Optionally read and validate root `.freview.json` using [project config](configuration.md) and [versioned schema](../../../schemas/freview-config.schema.json); never execute arbitrary config commands or create files automatically. The repository's existing documentation is first-class evidence, with conflicts recorded instead of silently resolved.
 
 ## Budget
 
