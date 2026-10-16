@@ -60,6 +60,17 @@ class SnapshotTests(unittest.TestCase):
         self.assertTrue(any(b["name"] == "feature/example" and b["worktrees"]
                             for b in result["branches"]))
 
+    def test_git_common_dir_identity_is_shared_between_worktrees(self):
+        other = Path(self.tmp.name) / "sibling"
+        run(self.root, "git", "worktree", "add", "-qb", "feature/sibling", str(other))
+        first = self.invoke()
+        p = subprocess.run([sys.executable, str(SCRIPT), "--json"], cwd=other,
+                           text=True, capture_output=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        sibling = json.loads(p.stdout)
+        self.assertEqual(first["repo_identity"], sibling["repo_identity"])
+        self.assertNotEqual(first["root"], sibling["root"])
+
     def test_explicit_missing_base_fails_without_fallback(self):
         p = subprocess.run([sys.executable, str(SCRIPT), "--json",
                             "--base", "definitely-not-a-ref"],
