@@ -49,13 +49,52 @@ class ReportTests(unittest.TestCase):
         result = json.loads(self.invoke(self.write("a.json", sample())).stdout)
         self.assertTrue(result["valid"])
 
-    def test_new_and_resolved(self):
+    def test_new_and_absent_needs_reverification(self):
         before = self.write("old.json", sample([finding("a"), finding("b")]))
         after = self.write("new.json", sample([finding("b"), finding("c")]))
         out = json.loads(self.invoke(before, after).stdout)
         self.assertEqual([x["id"] for x in out["new"]], ["c"])
-        self.assertEqual([x["id"] for x in out["resolved"]], ["a"])
+        self.assertEqual([x["id"] for x in out["absent_from_new_report"]], ["a"])
         self.assertEqual(out["unchanged_count"], 1)
+
+    def test_utc_field_rejects_non_utc_offset(self):
+        data = sample()
+        data["timestamp_utc"] = "2026-10-17T03:00:00+05:30"
+        self.assertEqual(self.invoke(self.write("nonutc.json", data), ok=False).returncode, 2)
+
+    def test_empty_audit_categories_cannot_claim_full(self):
+        data = sample(kind="full-audit", mode="full", included=())
+        data["duplicate_clusters"] = []
+        data["remediation_plan"] = []
+        data["verification_manifest"] = []
+        self.assertEqual(self.invoke(self.write("empty.json", data), ok=False).returncode, 2)
+
+    def test_report_symlink_is_refused(self):
+        original = Path(self.write("actual.json", sample()))
+        link = self.root / "linked.json"
+        link.symlink_to(original)
+        result = self.invoke(str(link), ok=False)
+        self.assertEqual(result.returncode, 2)
+
+    def test_oversized_input_refused_before_json_parse(self):
+        path = self.root / "huge.json"
+        with path.open("wb") as stream:
+            stream.truncate(16 * 1024 * 1024 + 1)
+        result = self.invoke(str(path), ok=False)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("exceeds 16 MiB", result.stderr)
+
+    def test_report_markdown_renders_untrusted_controls_literally(self):
+        left = sample([finding("one")])
+        right = sample([finding("one")])
+        right["findings"][0]["summary"] = "Bad\\x1b[2J injection"
+        p = subprocess.run([sys.executable, str(SCRIPT),
+                            self.write("m-left.json", left),
+                            self.write("m-right.json", right)],
+                           text=True, capture_output=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertNotIn("\\x1b", p.stdout)
+        self.assertIn("u001b", p.stdout)
 
     def test_incompatible_coverage_refuses(self):
         before = self.write("old.json", sample())
@@ -105,7 +144,7 @@ class ReportTests(unittest.TestCase):
         result = json.loads(self.invoke(
             self.write("old.json", old), self.write("new.json", new)).stdout)
         self.assertEqual(result["new"][0]["id"], "b")
-        self.assertEqual(result["resolved"][0]["id"], "a")
+        self.assertEqual(result["absent_from_new_report"][0]["id"], "a")
 
     def test_missing_repository_identity_never_compares_as_equal(self):
         left = sample()
