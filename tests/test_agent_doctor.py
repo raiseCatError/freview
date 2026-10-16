@@ -1,6 +1,8 @@
 """Agent doctor alias/profile smoke tests; no shell execution or model calls."""
 import importlib.util
 import json
+import os
+from unittest import mock
 from pathlib import Path
 import tempfile
 import unittest
@@ -13,6 +15,12 @@ SPEC.loader.exec_module(DOCTOR)
 
 class AgentDoctorTests(unittest.TestCase):
     def setUp(self):
+        # Profiles in the developer's real shell must not contaminate fixtures.
+        self.env_patch = mock.patch.dict(os.environ, {
+            "CLAUDE_CONFIG_DIR": "", "CODEX_HOME": "", "OPENCODE_CONFIG_DIR": ""
+        })
+        self.env_patch.start()
+        self.addCleanup(self.env_patch.stop)
         self.tmp = tempfile.TemporaryDirectory(prefix="freview-doctor-")
         self.home = Path(self.tmp.name) / "home"
         self.home.mkdir()
@@ -72,6 +80,27 @@ class AgentDoctorTests(unittest.TestCase):
         self.assertEqual(result["profile_resolution"], "dynamic-or-unresolved")
         self.assertFalse(marker.exists())
         self.assertNotIn("do-not-print", json.dumps(data))
+
+    def test_dynamic_profile_never_claims_default_skill_path(self):
+        default = self.home / ".claude/skills/freview"
+        default.mkdir(parents=True)
+        (default / "SKILL.md").write_text("mock")
+        (self.home / ".zshrc").write_text(
+            "alias claude-custom='CLAUDE_CONFIG_DIR=$(some-command) claude'\\n")
+        row = self.records()["claude-custom"]
+        self.assertEqual(row["profile_resolution"], "dynamic-or-unresolved")
+        self.assertIsNone(row["profile_path"])
+        self.assertNotIn(str(default), [p["path"] for p in row["skill_locations"]])
+        self.assertFalse(row["freview_visible_on_disk"])
+
+    def test_unresolved_codex_home_does_not_fall_back_to_default(self):
+        default = self.home / ".codex/skills/freview"
+        default.mkdir(parents=True)
+        (default / "SKILL.md").write_text("mock")
+        locations = DOCTOR.skill_locations("codex", self.home, None, {"CODEX_HOME": None})
+        self.assertNotIn(str(default), [p["path"] for p in locations])
+        self.assertIn(str(self.home / ".agents/skills/freview"),
+                      [p["path"] for p in locations])
 
     def test_rc_symlink_not_followed(self):
         external = self.home / "external"
