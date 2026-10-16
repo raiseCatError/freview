@@ -6,7 +6,7 @@ freview is a portable, evidence-first [Agent Skill](https://agentskills.io/) for
 
 It produces a review, not a cleanup script. Default operations are **read-only**.
 
-> **Status:** v0.1 preview in [draft PR](https://github.com/raiseCatError/freview/pulls). Installation commands below will work from the public default branch **after the skill PR is merged**. Until then, install directly from the review branch only for testing.
+> **Status:** Initial portable skill. Installation and exact agent-discovery behavior may vary by agent version; verify it against your setup. The default audit is strictly read-only.
 
 ## Install
 
@@ -54,9 +54,7 @@ By default freview runs Standard, without unnecessary questions. It asks only wh
 
 **Important:** Full includes a deep code-quality review, using a trusted installed specialist when appropriate or a bounded native review otherwise. Standard is the recommended daily check **without deep code review**. Full never silently installs tools, executes arbitrary scripts, runs expensive test suites, uploads private code, edits files or invokes external vulnerability scanners; those scanners remain opt-in.
 
-## Capabilities by mode
-
-No image asset required: this native Markdown table is readable, selectable and automatically adapts to GitHub light and dark themes.
+## Review modes
 
 | Capability | Quick | Standard (daily) | Full |
 |:--|:--:|:--:|:--:|
@@ -132,6 +130,16 @@ freview includes a curated [specialist registry](catalog/specialists.json) of po
 Every audit produces both (1) a factual report and (2) a proposed **how-to-fix plan** for confirmed problems. Each action includes the affected issue/PR/ref, supporting evidence, recommended smallest safe repair, priority, prerequisites/owner, verification/QA gates and estimated uncertainty. Nothing is fixed automatically. For a never-implemented *new feature*, freview reports its state and relevant dependency; detailed design or implementation suggestions are **opt-in** with `--suggest-implementation`. An audit must not quietly turn a planned feature into mandatory work.
 
 Duplicate checking compares **issues, PRs, milestones, roadmap entries, release trackers, documentation tasks and overlapping branches/initiatives**. Title similarity is only a candidate signal; confirming duplicates requires a shared deliverable and matching acceptance criteria, not just related topics or branches. Full mode may use source *wiring evidence* to assess whether two delivery initiatives overlap, but leaves duplicate-code/clone detection entirely to official code-review tools.
+
+## Checking duplicate work
+
+The optional metadata-only candidate checker can analyze an exported JSON array of issues, PRs, release tasks, project/roadmap items and documentation records:
+
+```sh
+python3 skills/freview/scripts/duplicates.py work-items.json --format json
+```
+
+It never fetches GitHub data automatically, never scans duplicate source code, and never marks a candidate as a confirmed duplicate. The **agent-assisted audit** can collect permitted GitHub issue/PR evidence, inspect acceptance criteria, and deliver a separately reasoned recommendation. Related issues, parent/child tasks, backports, and PRs implementing an issue are not automatically duplicates.
 
 ## Specialist selection
 
