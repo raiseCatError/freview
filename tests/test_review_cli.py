@@ -82,6 +82,35 @@ class ReviewCLITests(unittest.TestCase):
         self.assertTrue(report["remediation_plan"][0]["requires_approval"])
         self.assertTrue(report["findings"][0]["remediation"]["steps"])
 
+    def test_explicit_full_not_narrowed_by_project_config(self):
+        (self.root / ".freview.json").write_text(json.dumps({
+            "schema_version": 1,
+            "defaults": {"exclude": ["ci", "security-posture", "tracking"]}
+        }))
+        default_report = self.report()
+        self.assertNotIn("ci", default_report["scope"]["included"])
+        full = self.report("--mode", "full")
+        for check in ("ci", "security-posture", "tracking", "code-review"):
+            self.assertIn(check, full["scope"]["included"])
+        explicit_standard = self.report("--mode", "standard")
+        self.assertIn("ci", explicit_standard["scope"]["included"])
+        excluded = self.report("--mode", "full", "--exclude", "ci")
+        self.assertNotIn("ci", excluded["scope"]["included"])
+
+    def test_remote_identity_never_leaks_credentials(self):
+        run(self.root, "git", "remote", "add", "origin",
+            "https://hidden-token@example.com/company/project.git")
+        unknown = self.report()
+        self.assertIsNone(unknown["repository"]["remote"])
+        self.assertNotIn("hidden-token", json.dumps(unknown))
+        run(self.root, "git", "remote", "set-url", "origin",
+            "git@github.com:ExampleOrg/ExampleRepo.git")
+        known = self.report()
+        self.assertEqual(known["repository"]["identity"],
+                         "forge:github.com/exampleorg/examplerepo")
+        self.assertEqual(known["repository"]["remote"],
+                         "https://github.com/ExampleOrg/ExampleRepo")
+
     def test_only_selection(self):
         report = self.report("--only", "git,releases")
         self.assertEqual(report["scope"]["included"], ["git", "releases"])
