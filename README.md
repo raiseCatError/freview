@@ -46,11 +46,33 @@ freview only git, issues, releases       # Target specific categories
 freview standard --with code-review      # Add code review to a daily check
 freview full --with security-scan         # Opt into an authorized specialist scan
 freview full --base release/next         # Explicit candidate baseline
+freview standard --suggest-implementation # Opt-in ideas for unimplemented features
+freview only tracking,git --check-duplicates # Focused duplicate-work-item check
 ```
 
 By default freview runs Standard, without unnecessary questions. It asks only when a missing essential detail or permission requires a decision. Project policy may set a different default.
 
 **Important:** Full includes a deep code-quality review, using a trusted installed specialist when appropriate or a bounded native review otherwise. Standard is the recommended daily check **without deep code review**. Full never silently installs tools, executes arbitrary scripts, runs expensive test suites, uploads private code, edits files or invokes external vulnerability scanners; those scanners remain opt-in.
+
+## Capabilities by mode
+
+No image asset required: this native Markdown table is readable, selectable and automatically adapts to GitHub light and dark themes.
+
+| Capability | Quick | Standard (daily) | Full |
+|:--|:--:|:--:|:--:|
+| Identify project type, stack and policies | ✓ | ✓ | ✓ |
+| Git branches, worktrees, ancestry and hygiene | Basic | ✓ | ✓ |
+| Issues, PRs and stale completion claims | Basic | ✓ | ✓ |
+| **Genuine duplicate tracking** across issues, PRs, plans and delivery initiatives | Candidates | ✓ | ✓ |
+| CI and release readiness | Basic | ✓ | ✓ |
+| Docs, community, dependencies and accessibility | Basic | ✓ | ✓ |
+| Read implementation code and trace feature wiring | — | — | ✓ |
+| Deep code-quality review | — | — | ✓ |
+| Evidence-backed findings **and remediation plans** | ✓ | ✓ | ✓ |
+| Optional suggestions for never-implemented features | Opt-in | Opt-in | Opt-in |
+| External vulnerability scanners | Opt-in | Opt-in | Opt-in |
+
+Standard is the default daily **status and repository-hygiene** check: it does not review implementation source or duplicate code. Full adds implementation tracing and first-party code review where available. freview detects duplicate **work items and deliverables**, never clones or repeated functions; code duplication belongs to the selected official code reviewer.
 
 ## Modules
 
@@ -58,7 +80,9 @@ By default freview runs Standard, without unnecessary questions. It asks only wh
 | --- | --- |
 | Discovery | What kind of repository is it? Which policies, stacks, branches and release rules apply? |
 | Git | Are branches, worktrees, upstreams, PR ancestry, cherry-picks and candidates coherent? |
-| Delivery | Which issue acceptance criteria have real, reachable implementations? |
+| Delivery | Which issue acceptance criteria have real, reachable implementations (Full) or unverified status claims (Standard)? |
+| Duplicate work | Which issue/PR pairs, roadmap records or parallel initiatives genuinely represent the same work? Verified versus suspected duplicates are distinct. |
+| Remediation | What specifically needs fixing, who owns the work, what is the safest order, and how would success be verified? |
 | Verification | Which **exact SHA** was tested, on which matrix, and did every required CI gate pass? |
 | Release | Was something merely coded, integrated, verified, or actually published? |
 | Hygiene | Are docs, contribution files, license and support policies accurate and discoverable? |
@@ -101,7 +125,17 @@ See the [scheduled GitHub Actions template](templates/github-actions/freview-dai
 
 ## Specialist delegation
 
-freview includes a curated [specialist registry](catalog/specialists.json) of possible tools (codebase-review, OpenSSF Scorecard, OSV-Scanner, CodeQL, Semgrep, Gitleaks, Markdownlint, lychee and more). The registry is *discovery metadata*, not a package installation list or executable plan. It prefers already-installed, trusted tools and uses native review when appropriate; see [specialists](skills/freview/references/specialists.md).
+freview includes a curated [specialist registry](catalog/specialists.json) of possible tools (official Anthropic Code Review and OpenAI Codex Code Review; OpenSSF Scorecard, OSV-Scanner, CodeQL, Semgrep, Gitleaks, zizmor and lychee). The registry is *discovery metadata*, not a package installation list or executable plan. It prefers already-installed, trusted tools and uses native review when appropriate; see [specialists](skills/freview/references/specialists.md).
+
+## Findings and remediation plans
+
+Every audit produces both (1) a factual report and (2) a proposed **how-to-fix plan** for confirmed problems. Each action includes the affected issue/PR/ref, supporting evidence, recommended smallest safe repair, priority, prerequisites/owner, verification/QA gates and estimated uncertainty. Nothing is fixed automatically. For a never-implemented *new feature*, freview reports its state and relevant dependency; detailed design or implementation suggestions are **opt-in** with `--suggest-implementation`. An audit must not quietly turn a planned feature into mandatory work.
+
+Duplicate checking compares **issues, PRs, milestones, roadmap entries, release trackers, documentation tasks and overlapping branches/initiatives**. Title similarity is only a candidate signal; confirming duplicates requires a shared deliverable and matching acceptance criteria, not just related topics or branches. Full mode may use source *wiring evidence* to assess whether two delivery initiatives overlap, but leaves duplicate-code/clone detection entirely to official code-review tools.
+
+## Specialist selection
+
+freview prefers [official Anthropic Code Review](https://claude.com/plugins/code-review) and [OpenAI Codex Code Review](https://help.openai.com/en/articles/20001552-review-pull-requests-with-codex) if those capabilities are actually available. It does **not** recommend `amragl/codebase-review` (3 GitHub stars). Third-party specialists require verified adoption (currently at least 1,000 stars for repository-based tools), current maintenance, quality, suitability and permissions; stars alone are not proof of quality. Official product services need separate entitlement and billing checks. Any review mode that posts GitHub comments or triggers a paid cloud review requires explicit approval.
 
 ## Safety
 
