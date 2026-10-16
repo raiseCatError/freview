@@ -34,6 +34,27 @@ class SnapshotTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_git_output_budget_fails_closed(self):
+        # Run a real child that exceeds a small capture limit. Mocking os.read
+        # would also interfere with subprocess.Popen's own error pipe.
+        with self.assertRaisesRegex(RuntimeError, "byte budget"):
+            SNAPSHOT._bounded_command(
+                [sys.executable, "-c", "import sys; sys.stdout.write('x' * 100000)"],
+                self.root, os.environ.copy(), 10, stdout_limit=4096)
+
+    def test_bounded_git_refs_preserve_truncation_signal(self):
+        for i in range(6):
+            run(self.root, "git", "branch", "feature/budget-" + str(i))
+        previous = Path.cwd()
+        try:
+            os.chdir(self.root)
+            report = SNAPSHOT.snapshot(max_branches=2, max_divergences=0)
+        finally:
+            os.chdir(previous)
+        self.assertEqual(len(report["branches"]), 2)
+        self.assertFalse(report["branches_omitted_is_lower_bound"])
+        self.assertEqual(report["branches_omitted"], 5)
+
     def test_clean_repo_and_explicit_base(self):
         result = self.invoke("--base", "main")
         self.assertTrue(result["status"]["clean"])

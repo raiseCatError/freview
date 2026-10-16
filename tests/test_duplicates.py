@@ -29,6 +29,29 @@ class DuplicateTests(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertIn("explicit-duplicate-reference", result[0]["signals"])
 
+    def test_issue_explicitly_marks_pr_duplicate_despite_implementation_link(self):
+        items = [
+            {"id": 7, "kind": "pr", "title": "Add offline cache for reports",
+             "body": "Closes #5"},
+            {"id": 5, "kind": "issue", "title": "Caching of reports for offline use",
+             "body": "This is a duplicate of #7"},
+        ]
+        for order in (items, list(reversed(items))):
+            pairs = MOD.candidates(order)
+            self.assertEqual(len(pairs), 1)
+            self.assertEqual(pairs[0]["status"], "candidate-unverified")
+            self.assertIn("explicit-duplicate-reference", pairs[0]["signals"])
+
+    def test_explicit_pr_to_pr_duplicate_reference_is_candidate(self):
+        items = [
+            {"id": 7, "kind": "pr", "title": "Add offline cache for reports"},
+            {"id": 8, "kind": "pr", "title": "Rebuild persistent report cache",
+             "body": "Duplicate of #7"},
+        ]
+        result = MOD.candidates(items)
+        self.assertEqual(len(result), 1)
+        self.assertIn("explicit-duplicate-reference", result[0]["signals"])
+
     def test_related_issue_implementation_pr_not_duplicate(self):
         x = [{"id": 10, "kind": "issue", "title": "Add queue history"},
              {"id": 22, "kind": "pr", "title": "Implement queue history", "body": "Closes #10"}]

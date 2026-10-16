@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import stat
 import re
 import shutil
 
@@ -76,9 +77,14 @@ def extract_profiles(body, home):
 def read_shell_file(path):
     # Treat shell files as untrusted content. No sourcing or symlink following.
     try:
-        if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_CONFIG_BYTES:
-            return None
-        return path.read_text(encoding="utf-8", errors="replace")
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+        fd = os.open(path, flags)
+        with os.fdopen(fd, "rb") as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_CONFIG_BYTES:
+                return None
+            raw = stream.read(MAX_CONFIG_BYTES + 1)
+        return raw.decode("utf-8", "replace") if len(raw) <= MAX_CONFIG_BYTES else None
     except OSError:
         return None
 
@@ -151,13 +157,13 @@ def skill_locations(agent, home, workspace, overrides):
     project = workspace / ".agents/skills/freview" if workspace else None
     paths = []
     if agent == "claude":
-        profile = overrides.get("CLAUDE_CONFIG_DIR") or home / ".claude"
-        paths = [profile / "skills/freview"]
+        profile = overrides.get("CLAUDE_CONFIG_DIR", home / ".claude")
+        paths = [profile / "skills/freview"] if profile is not None else []
         if workspace:
             paths.append(workspace / ".claude/skills/freview")
     elif agent == "codex":
-        config_home = overrides.get("CODEX_HOME") or home / ".codex"
-        paths = [config_home / "skills/freview", common]
+        config_home = overrides.get("CODEX_HOME", home / ".codex")
+        paths = ([config_home / "skills/freview"] if config_home is not None else []) + [common]
     elif agent == "opencode":
         paths = [common, home / ".config/opencode/skills/freview",
                  home / ".claude/skills/freview"]
