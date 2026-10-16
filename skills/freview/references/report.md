@@ -54,3 +54,5 @@ Use `python3 <installed-skill>/scripts/report_tools.py REPORT.json` to validate 
 Only compare reports with matching repository identity, report kind and category coverage. A disappearing finding is a candidate for revalidation, not proof of remediation if investigation coverage differs. Without a supplied prior report, never pretend a previous daily run occurred.
 
 Do not automatically publish a local report to GitHub or include sensitive path/history content in public artifacts. The latest report always names excluded categories and unobserved evidence.
+
+JSON validation is structural only, **never execution authentication**. UTC timestamps must carry Z or +00:00. Comparison outputs use `absent_from_new_report` rather than `resolved`, because an unreported issue may simply not have been inspected. Reports remain private by default; manually screen local usernames, paths, secrets, private titles and branch names before publication.
