@@ -77,6 +77,23 @@ class SnapshotTests(unittest.TestCase):
         self.assertTrue(result["status"]["clean"])
         self.assertFalse(marker.exists(), "Git fsmonitor hook was executed during read-only audit")
 
+    def test_untrusted_clean_filter_cannot_execute_during_diff(self):
+        marker = Path(self.tmp.name) / "executed-clean-filter"
+        filter_program = Path(self.tmp.name) / "filter.sh"
+        filter_program.write_text(
+            "#!/bin/sh\nprintf 'hit' >> '" + str(marker) + "'\ncat\n"
+        )
+        filter_program.chmod(0o700)
+        (self.root / ".gitattributes").write_text("*.data filter=evil\n")
+        (self.root / "example.data").write_text("original\n")
+        run(self.root, "git", "add", ".gitattributes", "example.data")
+        run(self.root, "git", "commit", "-qm", "add filter fixture")
+        run(self.root, "git", "config", "filter.evil.clean", str(filter_program))
+        (self.root / "example.data").write_text("modified\n")
+        result = self.invoke()
+        self.assertGreater(result["status"]["tracked_changes"], 0)
+        self.assertFalse(marker.exists(), "Git clean filter executed in read-only audit")
+
     def test_malformed_npm_files_return_unknown_instead_of_crash(self):
         (self.root / "package.json").write_text("[]")
         (self.root / "package-lock.json").write_text("{}")
