@@ -1,12 +1,13 @@
 # OPT-IN template: copy into a target repository's .github/workflows/ and review first.
-# Requires a reviewed/pinned copy of scripts/repo_snapshot.py in the target repo.
+# Requires a reviewed/pinned project-local freview skill at
+# .agents/skills/freview/scripts/repo_snapshot.py (commit it or vendor it deliberately).
 # This is a local structural snapshot, NOT a complete agent-driven repository review.
 # Artifact uploads are disabled unless FREVIEW_UPLOAD_ARTIFACT repo variable is true.
 name: freview daily structural snapshot
 on:
   workflow_dispatch:
   schedule:
-    - cron: "30 3 * * *"
+    - cron: "30 3 * * *" # 03:30 UTC
 permissions:
   contents: read
 jobs:
@@ -23,7 +24,12 @@ jobs:
           python-version: "3.11"
       - name: Collect local metadata only
         run: |
-          python3 .freview/tools/repo_snapshot.py --json > freview-local.json
+          helper=.agents/skills/freview/scripts/repo_snapshot.py
+          if [ ! -f "$helper" ]; then
+            echo "::error::Install a reviewed project-local freview skill at $helper before enabling this workflow."
+            exit 1
+          fi
+          python3 "$helper" --json > freview-local.json
       # Artifacts can reveal branch names, local paths and repo metadata.
       # Off by default; users must explicitly set this repo variable to 'true'.
       - name: Upload reviewed metadata artifact
