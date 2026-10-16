@@ -39,6 +39,24 @@
       "warning": "Do not run or enable scanning without authorized scope; scanner coverage varies by language."
     },
     {
+      "id": "osv-scanner",
+      "category": "security-scan",
+      "repo": "https://github.com/google/osv-scanner",
+      "kind": "scanner",
+      "preference": "installed-only",
+      "when": "user-authorized dependency vulnerability scanning for supported ecosystems",
+      "warning": "May contact external advisory/resolver services; do not automatically install or upload private dependency manifests."
+    },
+    {
+      "id": "zizmor",
+      "category": "security-scan",
+      "repo": "https://github.com/woodruffw/zizmor",
+      "kind": "scanner",
+      "preference": "installed-only",
+      "when": "explicit authorized GitHub Actions workflow security inspection",
+      "warning": "Tool analyzes workflow YAML and can flag policy issues; no automatic edits."
+    },
+    {
       "id": "semgrep",
       "category": "security-scan",
       "repo": "https://github.com/semgrep/semgrep",
