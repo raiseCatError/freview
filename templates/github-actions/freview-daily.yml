@@ -1,0 +1,31 @@
+# OPT-IN template: copy into a target repository's .github/workflows/ and review first.
+# Requires a reviewed/pinned copy of scripts/repo_snapshot.py in the target repo.
+# This is a local structural snapshot, NOT a complete agent-driven repository review.
+name: freview daily structural snapshot
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 3 * * *"
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Collect local metadata only
+        run: |
+          python3 .freview/tools/repo_snapshot.py --json > freview-local.json
+      - name: Upload reviewed metadata artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: freview-local-snapshot
+          path: freview-local.json
+          retention-days: 7

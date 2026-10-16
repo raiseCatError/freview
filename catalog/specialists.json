@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "minimum_third_party_stars": 1000,
+    "official_first": true,
+    "require_current_maintenance": true,
+    "require_relevance_and_permissions": true,
+    "verification_date": "2026-10-17",
+    "selection": "Official Anthropic/OpenAI/GitHub product review first; community tools must meet popularity plus quality, activity, permission and relevance tests; star count alone insufficient.",
+    "no_autoinstall": true,
+    "no_autoexecution": true
+  },
+  "tools": [
+    {
+      "id": "anthropic-code-review-plugin",
+      "category": "code-review",
+      "name": "Claude Code Review (official plugin)",
+      "provider": "Anthropic",
+      "url": "https://claude.com/plugins/code-review",
+      "evidence": "Anthropic Verified; 438525 installs displayed 2026-10-17",
+      "preference": "official-if-present",
+      "access": "plugin",
+      "permissions": "May post PR review comments; do not trigger without explicit authorization to mutate GitHub.",
+      "notes": "Best for PR changes; confirm installed plugin, CLI support and GitHub permissions. Do not confuse with hosted Team/Enterprise review."
+    },
+    {
+      "id": "anthropic-hosted-code-review",
+      "category": "code-review",
+      "name": "Claude Code Review (hosted, official)",
+      "provider": "Anthropic",
+      "url": "https://support.claude.com/en/articles/14233555-set-up-code-review-for-claude-code",
+      "evidence": "First-party Anthropic service, September 2026; research preview",
+      "preference": "existing-results-only",
+      "access": "Team/Enterprise hosted service",
+      "permissions": "Separately billed, posts GitHub review feedback; never activate or trigger automatically.",
+      "notes": "Reconcile already-generated comments only unless user explicitly requests and has plan access."
+    },
+    {
+      "id": "openai-codex-review",
+      "category": "code-review",
+      "name": "Codex Code Review (official)",
+      "provider": "OpenAI",
+      "url": "https://help.openai.com/en/articles/20001552-review-pull-requests-with-codex",
+      "repository": "https://github.com/openai/codex",
+      "evidence": "First-party OpenAI; openai/codex 129531 stars on 2026-10-17",
+      "preference": "official-if-present",
+      "access": "native local review / Code Review interface",
+      "permissions": "Prefer read-only local /review or available prior findings; @codex review and GitHub comment posting require explicit authorization.",
+      "notes": "Review exact diff and repo rules. Local native review can be used without triggering cloud PR posting when available."
+    },
+    {
+      "id": "ossf-scorecard",
+      "category": "security-posture",
+      "name": "OpenSSF Scorecard",
+      "provider": "OpenSSF",
+      "url": "https://github.com/ossf/scorecard",
+      "stars": 5759,
+      "evidence": "5759 stars, active 2026-10-16",
+      "preference": "existing-results-first",
+      "permissions": "No external run by default; use public verified receipts or ask before CLI scans.",
+      "notes": "Security posture only; not a bug verification engine."
+    },
+    {
+      "id": "osv-scanner",
+      "category": "security-scan",
+      "name": "OSV-Scanner",
+      "provider": "Google",
+      "url": "https://github.com/google/osv-scanner",
+      "stars": 11194,
+      "evidence": "11194 stars, active 2026-10-15",
+      "preference": "installed-and-authorized",
+      "permissions": "Network/advisory lookup may transmit dependency identifiers; opt-in.",
+      "notes": "Checks known dependency vulnerabilities, not source correctness."
+    },
+    {
+      "id": "semgrep",
+      "category": "security-scan",
+      "name": "Semgrep",
+      "provider": "Semgrep",
+      "url": "https://github.com/semgrep/semgrep",
+      "stars": 17095,
+      "evidence": "17095 stars, active 2026-10-16",
+      "preference": "installed-and-authorized",
+      "permissions": "Do not enable cloud upload, arbitrary rules or source transmission without approval.",
+      "notes": "Rule-specific static analysis; verify findings."
+    },
+    {
+      "id": "gitleaks",
+      "category": "security-scan",
+      "name": "Gitleaks",
+      "provider": "Gitleaks",
+      "url": "https://github.com/gitleaks/gitleaks",
+      "stars": 30021,
+      "evidence": "30021 stars, active 2026-09-30",
+      "preference": "installed-and-authorized",
+      "permissions": "May uncover historical secrets. Never publish raw findings or run without authorization.",
+      "notes": "Secrets detection only."
+    },
+    {
+      "id": "codeql",
+      "category": "security-scan",
+      "name": "GitHub CodeQL Action",
+      "provider": "GitHub",
+      "url": "https://github.com/github/codeql-action",
+      "stars": 1655,
+      "evidence": "1655 stars, active 2026-10-16",
+      "preference": "existing-results-only",
+      "permissions": "Read previously configured code-scanning alerts; do not install or enable automatically.",
+      "notes": "Security coverage depends on language/query suite."
+    },
+    {
+      "id": "zizmor",
+      "category": "security-scan",
+      "name": "zizmor",
+      "provider": "zizmorcore",
+      "url": "https://github.com/zizmorcore/zizmor",
+      "stars": 6716,
+      "evidence": "6716 stars, active 2026-10-16",
+      "preference": "installed-and-authorized",
+      "permissions": "Inspect GitHub Actions definitions; never auto-fix.",
+      "notes": "GitHub Actions security, not code duplication."
+    },
+    {
+      "id": "lychee",
+      "category": "docs",
+      "name": "lychee",
+      "provider": "lycheeverse",
+      "url": "https://github.com/lycheeverse/lychee",
+      "stars": 4012,
+      "evidence": "4012 stars, active 2026-10-13",
+      "preference": "installed-and-authorized",
+      "permissions": "Link checks may request network/private URLs; permission required.",
+      "notes": "Documentation URL validation only."
+    }
+  ]
+}

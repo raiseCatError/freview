@@ -1,0 +1,37 @@
+name: freview checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  portable-snapshot:
+    name: Python/Git snapshot (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check optional helper syntax
+        run: python3 -m py_compile skills/freview/scripts/repo_snapshot.py skills/freview/scripts/review.py
+      - name: Run no-dependency fixtures
+        run: python3 -m unittest discover -s tests -v
+      - name: Exercise read-only local snapshot
+        run: python3 skills/freview/scripts/repo_snapshot.py --json > /dev/null
+      - name: Exercise standard and full local reports
+        run: |
+          python3 skills/freview/scripts/review.py --mode standard --format json > /dev/null
+          python3 skills/freview/scripts/review.py --mode full --format json > /dev/null
+      - name: Check repository diff
+        run: git diff --exit-code --check

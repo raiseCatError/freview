@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/raiseCatError/freview/blob/main/schemas/freview-config.schema.json",
+  "title": "freview project policy v1",
+  "description": "Declarative, read-only project preferences; never contains executable commands, plugin download URLs or secrets.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "project_type": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "development_branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\x00-\\x1F\\x7F]+$"
+        },
+        "release_branches": {
+          "type": "array",
+          "maxItems": 30,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "quick",
+            "standard",
+            "full"
+          ]
+        },
+        "include": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/category"
+          }
+        },
+        "exclude": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/category"
+          }
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_branches": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2000
+        },
+        "max_issues": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5000
+        },
+        "max_prs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5000
+        }
+      }
+    },
+    "specialists": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "code_review": {
+          "enum": [
+            "prefer-installed",
+            "native-only",
+            "ask",
+            "off"
+          ]
+        },
+        "security_scan": {
+          "enum": [
+            "ask",
+            "off",
+            "prefer-installed"
+          ]
+        },
+        "repository_lint": {
+          "enum": [
+            "prefer-installed",
+            "ask",
+            "off"
+          ]
+        }
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "human_qa_required": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "maxLength": 300
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "category": {
+      "enum": [
+        "git",
+        "tracking",
+        "implementation",
+        "ci",
+        "releases",
+        "docs",
+        "community",
+        "dependencies",
+        "security-posture",
+        "accessibility",
+        "code-review",
+        "security-scan"
+      ]
+    }
+  }
+}
