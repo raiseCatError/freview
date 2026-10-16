@@ -140,6 +140,12 @@ The helper reports current Git metadata, worktrees, branch/upstream divergence, 
 
 Optionally put a validated `.freview.json` at your repository root. Declare your development/release branches, default audit mode, excluded categories, optional human QA gates, bounded audit limits and specialist preferences. The config is **data only**, never executable hooks. See [configuration](skills/freview/references/configuration.md), [JSON Schema](schemas/freview-config.schema.json) and [NMSh example](examples/nmsh.freview.json). Explicit user instructions override project preferences.
 
+## Report semantics and installation checks
+
+Report comparisons now call missing findings `absent_from_new_report` rather than `resolved`. Absence of a finding **does not prove remediation**; verify actual source and CI evidence against exact refs. JSON schema validation checks structure, **not whether a tool really ran**. The report loader bounds reads before parsing and checks timestamps are UTC. Private paths and branch names remain possible in reports; review documents before publication.
+
+The agent installation doctor now checks all bundled references, helpers and template files and examines both documented Antigravity global directories. On aliases it may show `underlying_binary_guess` but **cannot confirm that the wrapper executed that binary**.
+
 ## Local JSON reports and daily changes
 
 The optional no-dependency Python CLI can generate local structural metadata in JSON or Markdown:
@@ -153,6 +159,15 @@ python3 skills/freview/scripts/report_tools.py previous.json current.json --form
 The CLI supports Python isolated mode (`python3 -I`), which avoids ambient Python import paths without serving as an operating-system sandbox. The CLI's report is deliberately `local-snapshot`, **not a complete agent review**. The agent produces wider evidence-backed reports following [report JSON Schema](schemas/freview-report.schema.json). An explicit `--output` can write one new file under an approved scratch directory; no files are written by default. To compare daily findings, supply two reports with compatible mode, category scope and integration baseline; the validator refuses incompatible scopes and uses sanitized forge identity or a shared local Git common directory across worktrees. Explicit output files use owner-only permissions.
 
 Agent-generated Full/Partial JSON reports must include a per-category verification manifest; a Full report cannot claim that skipped checks or unperformed code reviews passed. The local helper remains a metadata snapshot, not a completed remote audit.
+
+
+Before publishing an agent-generated report, run an advisory privacy check (exit code `3` means one or more obvious risks were detected):
+
+```sh
+python3 -I skills/freview/scripts/report_tools.py --check-public --format json REPORT.json
+```
+
+The checker only names risk **categories**, not the suspected secret values; a clean result **never guarantees that publishing is safe**. Preserve the original privately, manually review issue titles, branch names and diffs, and never auto-upload freview outputs.
 
 ## Optional daily automation
 

@@ -4,6 +4,8 @@ import argparse
 import datetime as dt
 import re
 import json
+import os
+import unicodedata
 from pathlib import Path
 import sys
 
@@ -97,8 +99,15 @@ def _validate(value, spec, root, location="$"):
 
 
 def load(path):
-    raw = Path(path).read_bytes()
-    if len(raw) > 16 * 1024 * 1024:
+    # Open once, cap before parsing; reject symlinks where supported.
+    max_bytes = 16 * 1024 * 1024
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(path, flags)
+    with os.fdopen(fd, "rb") as handle:
+        raw = handle.read(max_bytes + 1)
+    if len(raw) > max_bytes:
         raise ValueError("Report exceeds 16 MiB")
     report = json.loads(raw.decode("utf-8"))
     schema_file = Path(__file__).resolve().parents[1] / "assets/schemas/freview-report.schema.json"
@@ -119,6 +128,8 @@ def load(path):
     if not isinstance(report["not_observed"], list) or not all(isinstance(x, str) for x in report["not_observed"]):
         raise ValueError("Invalid not_observed")
     if report["report_kind"] in ("partial-audit", "full-audit"):
+        if not scope["included"]:
+            raise ValueError("Cannot claim audit without selected categories")
         for key in ("remediation_plan", "duplicate_clusters"):
             if not isinstance(report.get(key), list):
                 raise ValueError("Agent audit must include " + key + " list")
@@ -149,6 +160,12 @@ def load(path):
                     raise ValueError("Cannot claim full-audit with incomplete " + category)
             if "code-review" in included and recorded["code-review"]["status"] != "verified":
                 raise ValueError("Full code review must be evidenced, not skipped")
+    if report["timestamp_utc"].endswith("Z"):
+        pass
+    else:
+        when = dt.datetime.fromisoformat(report["timestamp_utc"])
+        if when.utcoffset() != dt.timedelta(0):
+            raise ValueError("timestamp_utc must use UTC, not a different offset")
     findings = report["findings"]
     if not isinstance(findings, list):
         raise ValueError("Findings must be an array")
@@ -198,7 +215,7 @@ def compare(before, after):
         "before": before["timestamp_utc"], "after": after["timestamp_utc"],
         "report_kind": after["report_kind"],
         "new": [new[x] for x in sorted(new.keys() - old.keys())],
-        "resolved": [old[x] for x in sorted(old.keys() - new.keys())],
+        "absent_from_new_report": [old[x] for x in sorted(old.keys() - new.keys())],
         "changed": [{"before": old[x], "after": new[x]}
                     for x in sorted(old.keys() & new.keys())
                     if any(old[x].get(k) != new[x].get(k)
@@ -208,19 +225,78 @@ def compare(before, after):
             if all(old[x].get(k) == new[x].get(k)
                    for k in ("severity", "category", "summary", "status"))
         ),
-        "warning": "Not observed/unverified gaps remain report-specific; a disappearance is not proof of a fix if evidence changed."
+        "warning": "absent_from_new_report is NOT a verified fix. Validate each disappeared finding against the actual implementation and execution evidence."
     }
+
+
+def safe_markdown(value):
+    """Escape untrusted report text for terminal and Markdown presentation."""
+    out = []
+    for ch in str(value):
+        cp = ord(ch)
+        if unicodedata.category(ch) in ("Cc", "Cf", "Cs") or cp in (0x2028, 0x2029):
+            out.append("\\u%04x" % cp if cp <= 0xFFFF else "\\U%08x" % cp)
+        elif ch in "\\\\*_`[]()<>|":
+            out.append("\\" + ch)
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def publication_risks(report):
+    """Privacy heuristics only; passing never guarantees a safe public report."""
+    patterns = (
+        ("local-user-path", re.compile(r"(?:/Users/[^/\s]+|/home/[^/\s]+|/Volumes/[^/\s]+)")),
+        ("file-uri", re.compile(r"file://", re.I)),
+        ("url-userinfo", re.compile(r"\b(?:https?|ssh)://[^\s/@:]+:[^\s/@]+@", re.I)),
+        ("credential-shaped-text", re.compile(r"\b(?:github_pat_|ghp_|gho_|sk-)[A-Za-z0-9_-]{12,}")),
+        ("private-key-marker", re.compile(r"-----BEGIN (?:OPENSSH|RSA|EC|DSA|PRIVATE) PRIVATE KEY-----")),
+    )
+    found = set()
+
+    def inspect(value):
+        if isinstance(value, dict):
+            for child in value.values():
+                inspect(child)
+        elif isinstance(value, list):
+            for child in value:
+                inspect(child)
+        elif isinstance(value, str):
+            if any(unicodedata.category(ch) == "Cc" and ch not in "\r\n\t"
+                   or ord(ch) in (0x202A, 0x202B, 0x202D, 0x202E, 0x2066, 0x2067, 0x2068, 0x2069)
+                   for ch in value):
+                found.add("terminal-or-bidi-control")
+            for label, regex in patterns:
+                if regex.search(value):
+                    found.add(label)
+
+    inspect(report)
+    return sorted(found)
 
 
 def main():
     p = argparse.ArgumentParser(description="Validate or compare freview JSON reports")
     p.add_argument("reports", nargs="+", help="one report validates; two compare")
     p.add_argument("--format", choices=("json", "markdown"), default="markdown")
+    p.add_argument("--check-public", action="store_true",
+                   help="advisory only: flag obvious private paths, token shapes and control text")
     args = p.parse_args()
     if len(args.reports) not in (1, 2):
         p.error("pass one report to validate, or two to compare")
     try:
         reports = [load(x) for x in args.reports]
+        if args.check_public:
+            if len(reports) != 1:
+                raise ValueError("--check-public requires exactly one report")
+            risks = publication_risks(reports[0])
+            result = {"kind": "freview-publication-privacy-check/1",
+                      "obvious_risks": risks,
+                      "no_obvious_risks_detected": not risks,
+                      "warning": "Heuristic check only: absence of matches does NOT certify publication safety. Manual review required."}
+            print(json.dumps(result, indent=2) if args.format == "json" else
+                  "Publication privacy check: " + (", ".join(risks) if risks else "no obvious patterns") +
+                  "\\nManual privacy review always required.")
+            return 3 if risks else 0
         if len(reports) == 1:
             result = {"valid": True, "kind": reports[0]["report_kind"],
                       "findings": len(reports[0]["findings"])}
@@ -231,11 +307,11 @@ def main():
             result = compare(*reports)
             if args.format == "markdown":
                 print("# freview report comparison\n")
-                for heading in ("new", "resolved", "changed"):
+                for heading in ("new", "absent_from_new_report", "changed"):
                     print("## " + heading.title() + " (" + str(len(result[heading])) + ")")
                     for item in result[heading]:
                         f = item.get("after", item)
-                        print("- " + str(f["id"]) + ": " + str(f["summary"]).replace("\n", " "))
+                        print("- " + safe_markdown(f["id"]) + ": " + safe_markdown(f["summary"]))
                     print()
                 print("Unchanged:", result["unchanged_count"])
                 print(result["warning"])

@@ -21,11 +21,15 @@ MAX_CONFIG_BYTES = 128 * 1024
 MAX_DEFINITIONS = 128
 BUNDLE_REQUIRED = (
     "SKILL.md", "scripts/repo_snapshot.py", "scripts/review.py",
-    "scripts/report_tools.py", "scripts/duplicates.py",
+    "scripts/report_tools.py", "scripts/duplicates.py", "scripts/agent_doctor.py",
     "assets/schemas/freview-config.schema.json",
     "assets/schemas/freview-report.schema.json",
-    "assets/catalog/specialists.json",
-    "references/modes.md", "references/specialists.md", "references/report.md",
+    "assets/catalog/specialists.json", "assets/templates/github-actions/freview-daily.yml",
+    "references/agent-discovery.md", "references/automation.md",
+    "references/configuration.md", "references/delivery.md",
+    "references/discovery.md", "references/duplicates.md", "references/git.md",
+    "references/hygiene.md", "references/modes.md", "references/remediation.md",
+    "references/specialists.md", "references/report.md",
 )
 
 
@@ -114,6 +118,23 @@ def scan_definitions(contents, source, home):
     return found
 
 
+def referenced_assets(root):
+    """Statically discover bundled links in SKILL.md; never execute content."""
+    required = set(BUNDLE_REQUIRED)
+    skill = root / "SKILL.md"
+    try:
+        if skill.stat().st_size <= 256 * 1024:
+            body = skill.read_text(encoding="utf-8")
+            for link in re.findall(r"\]\(([^)]+)\)", body):
+                target = link.split("#", 1)[0]
+                if target.startswith(("references/", "assets/", "scripts/")) and (
+                        ".." not in Path(target).parts and not Path(target).is_absolute()):
+                    required.add(target)
+    except (OSError, UnicodeError):
+        pass
+    return sorted(required)
+
+
 def skill_path_state(path):
     try:
         if path.is_symlink() and not path.exists():
@@ -147,6 +168,7 @@ def skill_locations(agent, home, workspace, overrides):
                           workspace / ".claude/skills/freview"])
     elif agent == "agy":
         paths = [home / ".gemini/antigravity-cli/skills/freview",
+                 home / ".gemini/config/skills/freview",
                  home / ".gemini/skills/freview"]
     if project and agent in ("codex", "opencode", "agy"):
         paths.append(project)
@@ -190,7 +212,8 @@ def inspect(home, workspace=None, extra_files=(), shell_scan=True):
             item["bundle"] = "not-checked"
             if item["status"] == "present":
                 root = Path(item["path"])
-                missing = [asset for asset in BUNDLE_REQUIRED if not (root / asset).is_file()]
+                missing = [asset for asset in referenced_assets(root)
+                           if not (root / asset).is_file()]
                 item["bundle"] = "incomplete" if missing else "complete"
                 item["missing_assets"] = missing
         active_var = ENV_BY_AGENT.get(cmd["agent"])
@@ -205,6 +228,8 @@ def inspect(home, workspace=None, extra_files=(), shell_scan=True):
                        "profile_resolution": resolution,
                        "profile_path": str(overrides[active_var]) if active_var in overrides and overrides[active_var] else None,
                        "executable": shutil.which(cmd["agent"]) if cmd["kind"] == "default" else None,
+                       "underlying_binary_guess": (shutil.which(cmd["agent"])
+                            if cmd["kind"] != "default" else None),
                        "skill_locations": locations,
                        "freview_visible_on_disk": any(x["status"] == "present" for x in locations),
                        "bundle_complete": any(x.get("bundle") == "complete" for x in locations),
