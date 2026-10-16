@@ -2,6 +2,7 @@
 """freview config-aware local snapshot. Read-only unless --output explicitly selects a new file."""
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 sys.dont_write_bytecode = True  # Avoid creating __pycache__ during an audit.
@@ -252,7 +253,12 @@ def main():
             dest = Path(args.output).expanduser()
             if not dest.parent.is_dir():
                 raise ValueError("Output parent doesn't exist; no directories are created")
-            with dest.open("x", encoding="utf-8") as stream:
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            if hasattr(os, "O_NOFOLLOW"):
+                flags |= os.O_NOFOLLOW
+            # An audit may contain private paths/branches. Never create it 0644.
+            fd = os.open(dest, flags, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
                 stream.write(output)
             print("Wrote local snapshot: " + str(dest))
         else:
