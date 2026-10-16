@@ -6,7 +6,7 @@ A human can run `freview standard` daily, or create a ChatGPT/agent scheduler wh
 
 ## GitHub Actions template
 
-The opt-in [daily snapshot template](../assets/templates/github-actions/freview-daily.yml) illustrates a scheduled non-AI metadata check. It runs Python/Git against the checked-out repository, exports a JSON **local snapshot**, and stores it as a short-lived private-to-repo Actions artifact where GitHub permits. It does NOT automatically enumerate hosted issues, perform deep source review, invoke paid AI models or publish a security verdict.
+The opt-in [daily snapshot template](../assets/templates/github-actions/freview-daily.yml) illustrates a scheduled non-AI metadata check. It runs Python/Git against the checked-out repository, exports a JSON **local snapshot**, and **optionally** uploads it as a short-lived Actions artifact only after the maintainer enables `FREVIEW_UPLOAD_ARTIFACT=true`. Metadata upload is disabled by default. It does NOT automatically enumerate hosted issues, perform deep source review, invoke paid AI models or publish a security verdict.
 
 Users must **copy and inspect** the template into their target project's `.github/workflows/`, choose permissions/retention, and ensure the skill's helper exists at the configured path. Nothing is enabled by installing the freview skill. Use a pinned release or vendored reviewed helper rather than downloading mutable `main` scripts with curl in every run.
 
