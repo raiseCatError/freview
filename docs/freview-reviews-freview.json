@@ -1,0 +1,466 @@
+{
+  "schema_version": 1,
+  "generator": "freview agent-assisted review (GitHub connector and source inspection)",
+  "report_kind": "partial-audit",
+  "timestamp_utc": "2026-10-16T20:35:00Z",
+  "mode_requested": "full",
+  "scope": {
+    "included": [
+      "git",
+      "tracking",
+      "implementation",
+      "ci",
+      "releases",
+      "docs",
+      "community",
+      "dependencies",
+      "security-posture",
+      "accessibility",
+      "code-review"
+    ],
+    "excluded": [
+      "security-scan"
+    ],
+    "specialists": {
+      "code-review": "native source inspection; no official external reviewer invoked",
+      "security-scan": "not selected"
+    },
+    "coverage": "Entire reachable main tree, selected source/config/tests, GitHub issues/PRs/branches and exact-head CI. Local freview installation/execution and physical agent discovery not accessible."
+  },
+  "repository": {
+    "root": null,
+    "remote": "https://github.com/raiseCatError/freview",
+    "identity": "forge:github.com/raisecaterror/freview",
+    "base_ref": "main",
+    "base_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
+    "head_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa"
+  },
+  "findings": [
+    {
+      "id": "FR-01",
+      "severity": "P1",
+      "category": "releases",
+      "summary": "Scheduled consumer workflow pointed to an undocumented helper location",
+      "status": "observed",
+      "evidence": [
+        "The optional consumer template used .freview/tools/repo_snapshot.py, while the skill ships under skills/freview/scripts.",
+        "templates/github-actions/freview-daily.yml",
+        "skills/freview/scripts/repo_snapshot.py"
+      ],
+      "next_action": "Point the template at an explicitly installed project-local .agents/skills/freview/scripts/repo_snapshot.py",
+      "remediation": {
+        "summary": "Point the template at an explicitly installed project-local .agents/skills/freview/scripts/repo_snapshot.py",
+        "steps": [
+          "Point the template at an explicitly installed project-local .agents/skills/freview/scripts/repo_snapshot.py",
+          "Fail clearly when the reviewed skill is not present"
+        ],
+        "verification": [
+          "Run in disposable consumer with reviewed local skill and artifact-upload default off"
+        ],
+        "confidence": "high",
+        "requires_approval": true
+      }
+    },
+    {
+      "id": "FR-02",
+      "severity": "P1",
+      "category": "dependencies",
+      "summary": "Root npm metadata followed external symlinks or could read oversized files",
+      "status": "observed",
+      "evidence": [
+        "Manifest and lockfile reads used is_file()/read_text() without symlink refusal or byte caps.",
+        "skills/freview/scripts/repo_snapshot.py"
+      ],
+      "next_action": "Reject symlinked root npm files and bound manifest/lock read size",
+      "remediation": {
+        "summary": "Reject symlinked root npm files and bound manifest/lock read size",
+        "steps": [
+          "Reject symlinked root npm files and bound manifest/lock read size",
+          "Return an unverified status rather than declare clean"
+        ],
+        "verification": [
+          "Regression fixtures for outside-root symlink and oversized lockfile"
+        ],
+        "confidence": "high",
+        "requires_approval": true
+      }
+    },
+    {
+      "id": "FR-03",
+      "severity": "P1",
+      "category": "tracking",
+      "summary": "Duplicate-work candidate output was unbounded",
+      "status": "observed",
+      "evidence": [
+        "Pairwise title comparison could emit quadratic numbers of candidate records for near-identical titles; no code-clone detection by design.",
+        "skills/freview/scripts/duplicates.py"
+      ],
+      "next_action": "Cap returned candidate pairs and disclose possible truncation",
+      "remediation": {
+        "summary": "Cap returned candidate pairs and disclose possible truncation",
+        "steps": [
+          "Cap returned candidate pairs and disclose possible truncation",
+          "Keep candidates unconfirmed and no automatic issue closures"
+        ],
+        "verification": [
+          "Test high-collision input and conservative outcome"
+        ],
+        "confidence": "high",
+        "requires_approval": true
+      }
+    },
+    {
+      "id": "FR-04",
+      "severity": "P2",
+      "category": "tracking",
+      "summary": "JSON report comparison could accept two reports with no repository identity",
+      "status": "observed",
+      "evidence": [
+        "identity(before) == identity(after) evaluates true when both are None.",
+        "skills/freview/scripts/report_tools.py"
+      ],
+      "next_action": "Require nonempty stable identity in both reports",
+      "remediation": {
+        "summary": "Require nonempty stable identity in both reports",
+        "steps": [
+          "Require nonempty stable identity in both reports",
+          "Continue validating base and included scope"
+        ],
+        "verification": [
+          "Fixture with both reports lacking root, identity and remote"
+        ],
+        "confidence": "high",
+        "requires_approval": true
+      }
+    },
+    {
+      "id": "FR-05",
+      "severity": "P2",
+      "category": "docs",
+      "summary": "Runtime project-policy bounds differed from published schema",
+      "status": "observed",
+      "evidence": [
+        "project_type length, categories maxItems and release branch characters were not aligned.",
+        "skills/freview/scripts/review.py",
+        "schemas/freview-config.schema.json"
+      ],
+      "next_action": "Align validators and schema copies",
+      "remediation": {
+        "summary": "Align validators and schema copies",
+        "steps": [
+          "Align validators and schema copies",
+          "Retain packaging test for identical published/bundled schema"
+        ],
+        "verification": [
+          "Config edge-case tests and Linux/macOS CI"
+        ],
+        "confidence": "high",
+        "requires_approval": true
+      }
+    },
+    {
+      "id": "FR-06",
+      "severity": "P1",
+      "category": "ci",
+      "summary": "Full mode still depends on unverified real-agent orchestration",
+      "status": "partial",
+      "evidence": [
+        "The installed helper produces a local-snapshot; full GitHub/source analysis depends on an agent. No actual Claude/Codex/OpenCode/agy install was executed in this review.",
+        "skills/freview/SKILL.md",
+        "skills/freview/scripts/review.py",
+        "tests/test_skill_layout.py"
+      ],
+      "next_action": "Run fresh-install and Full/Standard invocation on each supported agent",
+      "remediation": {
+        "summary": "Run fresh-install and Full/Standard invocation on each supported agent",
+        "steps": [
+          "Run fresh-install and Full/Standard invocation on each supported agent",
+          "Require per-category verification_manifest and downgrade incomplete runs to partial-audit"
+        ],
+        "verification": [
+          "Actual command transcript and report validation on each target agent"
+        ],
+        "confidence": "medium",
+        "requires_approval": true
+      }
+    },
+    {
+      "id": "FR-07",
+      "severity": "P2",
+      "category": "community",
+      "summary": "GitHub repository metadata and contribution templates are sparse",
+      "status": "observed",
+      "evidence": [
+        "Repository description is empty; issue and PR templates were not present in inspected main tree.",
+        "https://github.com/raiseCatError/freview",
+        "https://github.com/raiseCatError/freview/tree/main/.github"
+      ],
+      "next_action": "Add concise GitHub description if repository editing is authorized",
+      "remediation": {
+        "summary": "Add concise GitHub description if repository editing is authorized",
+        "steps": [
+          "Add concise GitHub description if repository editing is authorized",
+          "Consider minimal issue/PR templates only if contributions justify them"
+        ],
+        "verification": [
+          "GitHub community-file inspection"
+        ],
+        "confidence": "high",
+        "requires_approval": true
+      }
+    },
+    {
+      "id": "FR-08",
+      "severity": "P2",
+      "category": "git",
+      "summary": "Merged feature branches remain listed remotely",
+      "status": "observed",
+      "evidence": [
+        "Historical merged feature/hardening/documentation branch heads remain present; existence is not itself a hygiene failure.",
+        "https://github.com/raiseCatError/freview/branches"
+      ],
+      "next_action": "Review retained branch ancestry and maintainer needs before any archive/delete decision",
+      "remediation": {
+        "summary": "Review retained branch ancestry and maintainer needs before any archive/delete decision",
+        "steps": [
+          "Review retained branch ancestry and maintainer needs before any archive/delete decision"
+        ],
+        "verification": [
+          "Confirm no active worktree or historical dependency before manual action"
+        ],
+        "confidence": "high",
+        "requires_approval": true
+      }
+    }
+  ],
+  "not_observed": [
+    "No local GitHub checkout available in runtime (network clone DNS failed); actual skill CLI and its fixture suite were not directly executed during this review.",
+    "Installed Claude Code, Codex, OpenCode and Antigravity CLI skill discovery and official code-review integration not executed.",
+    "Branch cleanliness/worktrees on maintainer machine, GitHub branch protection policies, user secrets and any unpublished local work not observed.",
+    "Security scan not selected; repository helper is not an operating-system sandbox.",
+    "New fix PR CI must be verified at its own exact SHA; previous main CI does not prove new changes."
+  ],
+  "verification_manifest": [
+    {
+      "category": "git",
+      "status": "partial",
+      "evidence": [
+        "https://github.com/raiseCatError/freview/branches",
+        "https://github.com/raiseCatError/freview/pulls"
+      ],
+      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
+      "tool": "GitHub connector",
+      "tool_version": null
+    },
+    {
+      "category": "tracking",
+      "status": "verified",
+      "evidence": [
+        "https://github.com/raiseCatError/freview/pulls",
+        "https://github.com/raiseCatError/freview/issues"
+      ],
+      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
+      "tool": "GitHub connector",
+      "tool_version": null
+    },
+    {
+      "category": "implementation",
+      "status": "partial",
+      "evidence": [
+        "skills/freview/SKILL.md",
+        "skills/freview/scripts/review.py",
+        "tests/test_review_cli.py"
+      ],
+      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
+      "tool": "Native code inspection",
+      "tool_version": null
+    },
+    {
+      "category": "ci",
+      "status": "verified",
+      "evidence": [
+        "https://github.com/raiseCatError/freview/actions/runs/38961320971"
+      ],
+      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
+      "tool": "GitHub Actions",
+      "tool_version": null
+    },
+    {
+      "category": "releases",
+      "status": "verified",
+      "evidence": [
+        "https://github.com/raiseCatError/freview/releases"
+      ],
+      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
+      "tool": "GitHub connector",
+      "tool_version": null
+    },
+    {
+      "category": "docs",
+      "status": "verified",
+      "evidence": [
+        "README.md",
+        "docs/freview-reviews-freview.md",
+        "skills/freview/references/automation.md"
+      ],
+      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
+      "tool": "Native document inspection",
+      "tool_version": null
+    },
+    {
+      "category": "community",
+      "status": "verified",
+      "evidence": [
+        "README.md",
+        "SECURITY.md",
+        "CONTRIBUTING.md",
+        "CODE_OF_CONDUCT.md",
+        ".github/ACCESSIBILITY.md"
+      ],
+      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
+      "tool": "Repository tree inspection",
+      "tool_version": null
+    },
+    {
+      "category": "dependencies",
+      "status": "partial",
+      "evidence": [
+        "skills/freview/scripts/repo_snapshot.py",
+        "GitHub tree: no root third-party dependency manifest"
+      ],
+      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
+      "tool": "Manifest/source inspection",
+      "tool_version": null
+    },
+    {
+      "category": "security-posture",
+      "status": "partial",
+      "evidence": [
+        "SECURITY.md",
+        "skills/freview/scripts/repo_snapshot.py",
+        ".github/workflows/checks.yml"
+      ],
+      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
+      "tool": "Native source/config inspection",
+      "tool_version": null
+    },
+    {
+      "category": "accessibility",
+      "status": "partial",
+      "evidence": [
+        ".github/ACCESSIBILITY.md",
+        "README.md"
+      ],
+      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
+      "tool": "Documentation inspection",
+      "tool_version": null
+    },
+    {
+      "category": "code-review",
+      "status": "partial",
+      "evidence": [
+        "skills/freview/scripts/repo_snapshot.py",
+        "skills/freview/scripts/review.py",
+        "skills/freview/scripts/report_tools.py",
+        "skills/freview/scripts/duplicates.py"
+      ],
+      "ref_sha": "1560b0a18b9291f1c56cbb47c3e473ec2294f9fa",
+      "tool": "Native source review; official plugin not invoked",
+      "tool_version": null
+    }
+  ],
+  "duplicate_clusters": [],
+  "remediation_plan": [
+    {
+      "finding_ids": [
+        "FR-01"
+      ],
+      "action": "Point the template at an explicitly installed project-local .agents/skills/freview/scripts/repo_snapshot.py; Fail clearly when the reviewed skill is not present",
+      "priority": "P1",
+      "verification": [
+        "Run in disposable consumer with reviewed local skill and artifact-upload default off"
+      ],
+      "requires_approval": true
+    },
+    {
+      "finding_ids": [
+        "FR-02"
+      ],
+      "action": "Reject symlinked root npm files and bound manifest/lock read size; Return an unverified status rather than declare clean",
+      "priority": "P1",
+      "verification": [
+        "Regression fixtures for outside-root symlink and oversized lockfile"
+      ],
+      "requires_approval": true
+    },
+    {
+      "finding_ids": [
+        "FR-03"
+      ],
+      "action": "Cap returned candidate pairs and disclose possible truncation; Keep candidates unconfirmed and no automatic issue closures",
+      "priority": "P1",
+      "verification": [
+        "Test high-collision input and conservative outcome"
+      ],
+      "requires_approval": true
+    },
+    {
+      "finding_ids": [
+        "FR-04"
+      ],
+      "action": "Require nonempty stable identity in both reports; Continue validating base and included scope",
+      "priority": "P2",
+      "verification": [
+        "Fixture with both reports lacking root, identity and remote"
+      ],
+      "requires_approval": true
+    },
+    {
+      "finding_ids": [
+        "FR-05"
+      ],
+      "action": "Align validators and schema copies; Retain packaging test for identical published/bundled schema",
+      "priority": "P2",
+      "verification": [
+        "Config edge-case tests and Linux/macOS CI"
+      ],
+      "requires_approval": true
+    },
+    {
+      "finding_ids": [
+        "FR-06"
+      ],
+      "action": "Run fresh-install and Full/Standard invocation on each supported agent; Require per-category verification_manifest and downgrade incomplete runs to partial-audit",
+      "priority": "P1",
+      "verification": [
+        "Actual command transcript and report validation on each target agent"
+      ],
+      "requires_approval": true
+    },
+    {
+      "finding_ids": [
+        "FR-07"
+      ],
+      "action": "Add concise GitHub description if repository editing is authorized; Consider minimal issue/PR templates only if contributions justify them",
+      "priority": "P2",
+      "verification": [
+        "GitHub community-file inspection"
+      ],
+      "requires_approval": true
+    },
+    {
+      "finding_ids": [
+        "FR-08"
+      ],
+      "action": "Review retained branch ancestry and maintainer needs before any archive/delete decision",
+      "priority": "P2",
+      "verification": [
+        "Confirm no active worktree or historical dependency before manual action"
+      ],
+      "requires_approval": true
+    }
+  ],
+  "implementation_suggestions_requested": false,
+  "human_review_required": true,
+  "reference_report": null
+}

@@ -232,9 +232,15 @@ def ecosystems(root):
 def npm_root_alignment(root):
     manifest = root / "package.json"
     lock = root / "package-lock.json"
+    if manifest.is_symlink() or lock.is_symlink():
+        return {"applicable": True, "status": "unknown",
+                "reason": "Symlinked npm manifests were not read"}
     if not (manifest.is_file() and lock.is_file()):
         return {"applicable": False}
     try:
+        if manifest.stat().st_size > 2 * 1024 * 1024 or lock.stat().st_size > 16 * 1024 * 1024:
+            return {"applicable": True, "status": "unknown",
+                    "reason": "npm metadata exceeds bounded read size"}
         package = json.loads(manifest.read_text(encoding="utf-8"))
         locked = json.loads(lock.read_text(encoding="utf-8"))
         if not isinstance(package, dict) or not isinstance(locked, dict):

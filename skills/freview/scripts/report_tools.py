@@ -176,7 +176,11 @@ def identity(report):
 
 
 def compare(before, after):
-    if identity(before) != identity(after):
+    first = identity(before)
+    second = identity(after)
+    if not first or not second:
+        raise ValueError("Cannot compare reports without a stable repository identity")
+    if first != second:
         raise ValueError("Reports refer to different repositories")
     if before["report_kind"] != after["report_kind"]:
         raise ValueError("Cannot compare different report kinds without misleading status changes")
