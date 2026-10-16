@@ -348,6 +348,57 @@
     "implementation_suggestions_requested": {
       "type": "boolean",
       "description": "Explicit opt-in only for future or never-implemented features"
+    },
+    "verification_manifest": {
+      "type": "array",
+      "description": "Category-level execution evidence: what was actually checked, tool/source and exact ref. Cannot equate a selected category with completed verification.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "category",
+          "status",
+          "evidence"
+        ],
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "verified",
+              "partial",
+              "not-observed",
+              "not-applicable"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ref_sha": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tool": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tool_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
     }
   },
   "allOf": [
@@ -368,7 +419,8 @@
       "then": {
         "required": [
           "remediation_plan",
-          "duplicate_clusters"
+          "duplicate_clusters",
+          "verification_manifest"
         ]
       }
     }
