@@ -12,6 +12,7 @@ CATEGORIES = ("git", "tracking", "implementation", "ci", "releases", "docs",
               "community", "dependencies", "security-posture", "accessibility",
               "code-review", "security-scan")
 CORE = CATEGORIES[:10]
+METADATA = tuple(x for x in CORE if x != "implementation")
 QUICK = ("git", "ci", "releases", "docs", "community")
 SECTIONS = {
     "repository": {"project_type", "development_branch", "release_branches"},
@@ -96,10 +97,13 @@ def categories(items):
 def scope(args, config):
     prefs = config.get("defaults", {})
     mode = args.mode or prefs.get("mode", "standard")
-    selected = list(QUICK if mode == "quick" else CORE)
+    selected = list(QUICK if mode == "quick" else CORE if mode == "full" else METADATA)
     if mode == "full":
         selected.append("code-review")
     for name in prefs.get("include", []):
+        # Repository data cannot silently turn a daily audit into source review.
+        if mode in ("quick", "standard") and name in ("implementation", "code-review"):
+            continue
         if name not in selected:
             selected.append(name)
     only = categories(args.only)
