@@ -80,7 +80,7 @@ class DuplicateTests(unittest.TestCase):
         self.assertTrue(stats["comparison_cap_reached"])
 
     def test_terminal_controls_are_escaped_in_markdown(self):
-        x = [{"id": "1\\x1b[2J", "title": "Restore queue output history from persistent session"},
+        x = [{"id": "1\x1b[2J", "title": "Restore queue output history from persistent session"},
              {"id": "2", "title": "Restore queue output history from persistent session"}]
         with tempfile.TemporaryDirectory(prefix="freview-controls-") as temp:
             path = Path(temp) / "inputs.json"
@@ -88,7 +88,7 @@ class DuplicateTests(unittest.TestCase):
             p = subprocess.run([sys.executable, str(SCRIPT), str(path)],
                                text=True, capture_output=True)
             self.assertEqual(p.returncode, 0, p.stderr)
-            self.assertNotIn("\\x1b", p.stdout)
+            self.assertNotIn("\x1b", p.stdout)
             self.assertIn("u001b", p.stdout)
 
     def test_similar_but_distinct_tasks_not_duplicate(self):
