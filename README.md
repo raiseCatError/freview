@@ -8,6 +8,8 @@ It produces a review, not a cleanup script. Default operations are **read-only**
 
 > **Status:** Initial portable skill. Installation and exact agent-discovery behavior may vary by agent version; verify it against your setup. The default audit is strictly read-only.
 
+**Dogfooding:** [freview reviews freview](docs/freview-reviews-freview.md) — a self-audit that is intentionally less flattering than a green CI badge.
+
 ## Install
 
 One portable skill: `skills/freview/SKILL.md`, with references and an optional Python-standard-library snapshot helper.
