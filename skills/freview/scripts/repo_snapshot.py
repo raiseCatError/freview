@@ -114,7 +114,11 @@ def git(args, cwd=None, allowed_failure=False):
              "-c", "core.pager=cat",
              *filter_overrides, *args], cwd, env, 20
         )
-    except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
+    except RuntimeError:
+        # Limit violations must always abort; allowed_failure applies only to
+        # ordinary Git nonzero results, never safety-budget failures.
+        raise
+    except (OSError, subprocess.TimeoutExpired) as exc:
         if allowed_failure:
             return None
         raise RuntimeError(f"Git could not run: {exc}") from exc
