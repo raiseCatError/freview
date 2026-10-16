@@ -87,7 +87,7 @@ def text(args, cwd=None, allowed_failure=False):
 
 
 def commit(ref, root):
-    return text(["rev-parse", "--verify", "--quiet", ref + "^{commit}"], root, True)
+    return text(["rev-parse", "--verify", "--quiet", "--end-of-options", ref + "^{commit}"], root, True)
 
 
 def divergence(base, head, root):
