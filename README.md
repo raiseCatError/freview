@@ -100,6 +100,17 @@ Standard is the default daily **status and repository-hygiene** check: it does n
 
 See [SKILL.md](skills/freview/SKILL.md), [modes](skills/freview/references/modes.md), and [report contract](skills/freview/references/report.md).
 
+## Agent aliases and multi-account smoke tests
+
+freview includes a **read-only agent doctor** for Claude Code, Codex, OpenCode, and Antigravity CLI (`agy`). It can recognize named wrappers such as `claude-account1`, `claude-account2`, `opencode1`, and `opencode2` when defined in common shell configuration files, discover their safe literal profile paths, and check **each profile's actual skill directory**, symlink status, and bundled assets:
+
+```sh
+python3 skills/freview/scripts/agent_doctor.py --workspace "$PWD"
+python3 skills/freview/scripts/agent_doctor.py --format json
+```
+
+No AI tokens, shell startup execution, installations, account switching, GitHub calls or filesystem changes. Dynamic wrappers and sourced configuration files may need `--shell-config PATH` and are reported as unresolved rather than guessed. Static presence **does not establish skill activation**; verify through each agent's native skill list. See [agent discovery limitations and safety](skills/freview/references/agent-discovery.md).
+
 ## Local read-only helper
 
 This is **optional**. It requires Python 3 and Git already installed. From the source checkout:
