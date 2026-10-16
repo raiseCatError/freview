@@ -50,6 +50,15 @@ class DuplicateTests(unittest.TestCase):
         records[1]["body"] = "References: #12"
         self.assertEqual(MOD.candidates(records), [])
 
+    def test_explicit_duplicate_statement_overrides_general_refs_link(self):
+        title = "Queue approvals and command staging interaction"
+        rows = [{"id": 12, "kind": "issue", "title": title},
+                {"id": 23, "kind": "pr", "title": title,
+                 "body": "Refs #12\\nDuplicate of #12"}]
+        pairs = MOD.candidates(rows)
+        self.assertEqual(len(pairs), 1)
+        self.assertIn("explicit-duplicate-reference", pairs[0]["signals"])
+
     def test_nonclosing_refs_does_not_exclude_two_distinct_prs(self):
         title = "Command queue dispatch and manual approval entry"
         records = [{"id": 23, "kind": "pr", "title": title, "body": "Refs #12"},
