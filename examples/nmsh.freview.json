@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "repository": {
+    "project_type": "terminal frontend",
+    "development_branch": "dev",
+    "release_branches": [
+      "release/*"
+    ]
+  },
+  "defaults": {
+    "mode": "standard",
+    "exclude": []
+  },
+  "limits": {
+    "max_branches": 200,
+    "max_issues": 250,
+    "max_prs": 250
+  },
+  "specialists": {
+    "code_review": "prefer-installed",
+    "security_scan": "ask",
+    "repository_lint": "prefer-installed"
+  },
+  "acceptance": {
+    "human_qa_required": true,
+    "notes": [
+      "Check keyboard/input ownership and terminal compatibility in physical QA"
+    ]
+  }
+}
