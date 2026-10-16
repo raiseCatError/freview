@@ -75,6 +75,43 @@ class ReportTests(unittest.TestCase):
         bad["remediation_plan"] = [{"requires_approval": False, "verification": []}]
         self.assertEqual(self.invoke(self.write("bad.json", bad), ok=False).returncode, 2)
 
+    def test_report_schema_rejects_unknown_fields_and_bad_nested_types(self):
+        invalid = sample()
+        invalid["unexpected"] = "must reject"
+        self.assertEqual(self.invoke(self.write("extra.json", invalid), ok=False).returncode, 2)
+        invalid = sample()
+        invalid["scope"]["included"] = ["git", 10]
+        self.assertEqual(self.invoke(self.write("bad-scope.json", invalid), ok=False).returncode, 2)
+        invalid = sample()
+        invalid["timestamp_utc"] = "yesterday"
+        self.assertEqual(self.invoke(self.write("bad-time.json", invalid), ok=False).returncode, 2)
+        invalid = sample([finding("a")])
+        invalid["findings"][0]["remediation"] = {
+            "summary": "propose fix", "steps": ["review"], "verification": [],
+            "confidence": "high", "requires_approval": False
+        }
+        self.assertEqual(self.invoke(self.write("bad-remediation.json", invalid), ok=False).returncode, 2)
+
+    def test_same_repository_multiple_worktree_paths_can_compare(self):
+        old = sample([finding("a")])
+        new = sample([finding("b")])
+        old["repository"]["identity"] = "forge:github.com/owner/project"
+        new["repository"]["identity"] = "forge:github.com/owner/project"
+        new["repository"]["root"] = "/tmp/different-worktree"
+        result = json.loads(self.invoke(
+            self.write("old.json", old), self.write("new.json", new)).stdout)
+        self.assertEqual(result["new"][0]["id"], "b")
+        self.assertEqual(result["resolved"][0]["id"], "a")
+
+    def test_report_scope_baseline_changes_are_not_comparable(self):
+        old = sample()
+        new = sample()
+        old["repository"]["base_ref"] = "main"
+        new["repository"]["base_ref"] = "dev"
+        self.assertEqual(self.invoke(
+            self.write("old.json", old), self.write("new.json", new),
+            ok=False).returncode, 2)
+
     def test_missing_evidence_refuses(self):
         bad = sample([finding("x")])
         del bad["findings"][0]["evidence"]
