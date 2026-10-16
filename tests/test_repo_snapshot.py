@@ -45,7 +45,12 @@ class SnapshotTests(unittest.TestCase):
     def test_bounded_git_refs_preserve_truncation_signal(self):
         for i in range(6):
             run(self.root, "git", "branch", "feature/budget-" + str(i))
-        report = SNAPSHOT.snapshot(max_branches=2, max_divergences=0)
+        previous = Path.cwd()
+        try:
+            os.chdir(self.root)
+            report = SNAPSHOT.snapshot(max_branches=2, max_divergences=0)
+        finally:
+            os.chdir(previous)
         self.assertEqual(len(report["branches"]), 2)
         self.assertFalse(report["branches_omitted_is_lower_bound"])
         self.assertEqual(report["branches_omitted"], 5)
