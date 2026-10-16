@@ -5,6 +5,7 @@ Does not fetch, install, execute project code, alter branches or delete files.
 This complements (does not replace) the agent's forge/CI and implementation review.
 """
 import argparse
+import errno
 import datetime as dt
 import json
 import os
@@ -389,8 +390,16 @@ def npm_root_alignment(root):
         return {"applicable": True, "status": "aligned" if not drift else "drift",
                 "lockfile_version": locked.get("lockfileVersion"),
                 "drift": drift[:50], "additional_drift": max(0, len(drift) - 50)}
-    except (OSError, ValueError, TypeError) as exc:
-        return {"applicable": True, "status": "unknown", "reason": str(exc)[:200]}
+    except OSError as exc:
+        # OS exception strings can contain absolute private local paths.
+        reason = ("Symlinked npm manifests were not read" if exc.errno == errno.ELOOP
+                  else "Unable to read npm metadata safely")
+        return {"applicable": True, "status": "unknown", "reason": reason}
+    except (ValueError, TypeError) as exc:
+        reason = ("npm metadata exceeds bounded read size"
+                  if str(exc) == "npm metadata exceeds bounded read size"
+                  else "Invalid npm metadata")
+        return {"applicable": True, "status": "unknown", "reason": reason}
 
 
 def snapshot(base=None, max_branches=200, categories=None,
