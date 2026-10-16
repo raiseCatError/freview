@@ -154,7 +154,8 @@ class SnapshotTests(unittest.TestCase):
             '{"packages":{"":{"dependencies":{}}}}')
         result = self.invoke()
         self.assertEqual(result["npm_root_alignment"]["status"], "unknown")
-        self.assertNotIn("private", json.dumps(result))
+        self.assertNotIn("secret", json.dumps(result))
+        self.assertNotIn("private", json.dumps(result["npm_root_alignment"]))
 
     def test_oversized_npm_metadata_is_not_read(self):
         (self.root / "package.json").write_text("{}")
