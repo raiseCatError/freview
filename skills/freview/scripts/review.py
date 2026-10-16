@@ -151,6 +151,26 @@ def create_report(args):
             "evidence": ["package.json", "package-lock.json"],
             "next_action": "Review the drift; never regenerate a lockfile automatically"
         })
+    # These steps are recommendations, never automatically executed.
+    proposed = []
+    for finding in findings:
+        if finding["id"] == "npm-root-lock-drift":
+            steps = ["Identify which manifest or lockfile reflects intended direct dependencies",
+                     "Reconcile only after developer approval in a separate change"]
+            verification = ["Check ecosystem-native lock consistency and approved CI"]
+        else:
+            steps = ["Identify the owner and purpose of each local change before any cleanup"]
+            verification = ["Confirm intended worktree state with its owner"]
+        finding["remediation"] = {
+            "summary": finding["next_action"], "steps": steps,
+            "verification": verification, "confidence": "medium",
+            "requires_approval": True
+        }
+        proposed.append({
+            "finding_ids": [finding["id"]], "action": finding["next_action"],
+            "priority": finding["severity"], "verification": verification,
+            "requires_approval": True
+        })
     unobserved = [
         "Local-only structural snapshot, not a completed AI or remote repository audit.",
         "Hosted issues/PRs, CI jobs, releases, deployments and security alerts not fetched.",
@@ -178,7 +198,7 @@ def create_report(args):
         "human_review_required": cfg.get("acceptance", {}).get("human_qa_required", False),
         "reference_report": None,
         "duplicate_clusters": [],
-        "remediation_plan": [],
+        "remediation_plan": proposed,
         "implementation_suggestions_requested": bool(args.suggest_implementation)
     }
     return report, cfgpath if cfg else None
