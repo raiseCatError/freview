@@ -416,7 +416,7 @@ def snapshot(base=None, max_branches=200, categories=None,
     raw_refs = text(
         ["for-each-ref", "--sort=-committerdate",
          "--format=%(refname:short)%00%(objectname)%00%(upstream:short)%00%(upstream:track)",
-         "--count=" + str(max_branches + 1), "refs/heads"], root
+         "refs/heads"], root
     )
     all_rows = [x for x in raw_refs.splitlines() if x]
     branches = []
@@ -486,7 +486,7 @@ def snapshot(base=None, max_branches=200, categories=None,
         "unique_branch_divergences_checked": divergence_calls,
         "branch_divergences_skipped_due_budget": divergence_skipped,
         "branches_omitted": max(0, len(all_rows) - len(branches)),
-        "branches_omitted_is_lower_bound": len(all_rows) > max_branches,
+        "branches_omitted_is_lower_bound": False,
         "community": community_files(root) if check_community else {},
         "ecosystems_root_only": ecosystems(root) if check_deps else {},
         "npm_root_alignment": (npm_root_alignment(root) if check_deps
