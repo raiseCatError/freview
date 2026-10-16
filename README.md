@@ -34,6 +34,8 @@ Codex's native skill installer can install a GitHub repo path; OpenCode discover
 
 ## Use
 
+The examples below are **conversational skill instructions**, not commands supported verbatim by the Python helper. The Python helper is a separate local-metadata tool.
+
 Ask your coding agent to invoke **freview** from inside a repository, or point it at a remotely accessible repository.
 
 ```text
@@ -50,7 +52,7 @@ freview standard --suggest-implementation # Opt-in ideas for unimplemented featu
 freview only tracking,git --check-duplicates # Focused duplicate-work-item check
 ```
 
-By default freview runs Standard, without unnecessary questions. It asks only when a missing essential detail or permission requires a decision. Project policy may set a different default.
+By default freview runs Standard, without unnecessary questions. It asks only when a missing essential detail or permission requires a decision. The default stays Standard unless you explicitly request another mode; project config cannot silently enable Full or external scans.
 
 **Important:** Full includes a deep code-quality review, using a trusted installed specialist when appropriate or a bounded native review otherwise. Standard is the recommended daily check **without deep code review**. Full never silently installs tools, executes arbitrary scripts, runs expensive test suites, uploads private code, edits files or invokes external vulnerability scanners; those scanners remain opt-in.
 
