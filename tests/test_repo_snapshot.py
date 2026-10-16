@@ -146,6 +146,23 @@ class SnapshotTests(unittest.TestCase):
         (self.root / "package-lock.json").write_text('{"packages":{"":[]}}')
         self.assertEqual(self.invoke()["npm_root_alignment"]["status"], "unknown")
 
+    def test_symlinked_npm_metadata_is_not_read(self):
+        external = Path(self.tmp.name) / "external-package.json"
+        external.write_text('{"dependencies":{"private":"secret"}}')
+        (self.root / "package.json").symlink_to(external)
+        (self.root / "package-lock.json").write_text(
+            '{"packages":{"":{"dependencies":{}}}}')
+        result = self.invoke()
+        self.assertEqual(result["npm_root_alignment"]["status"], "unknown")
+        self.assertNotIn("private", json.dumps(result))
+
+    def test_oversized_npm_metadata_is_not_read(self):
+        (self.root / "package.json").write_text("{}")
+        (self.root / "package-lock.json").write_text(" " * (16 * 1024 * 1024 + 1))
+        result = self.invoke()
+        self.assertEqual(result["npm_root_alignment"]["status"], "unknown")
+        self.assertIn("size", result["npm_root_alignment"]["reason"])
+
     def test_npm_lock_drift(self):
         (self.root / "package.json").write_text(
             json.dumps({"dependencies": {"x": "^1.0.0"}}), encoding="utf-8")
