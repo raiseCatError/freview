@@ -1,5 +1,6 @@
 """Config, mode and JSON report fixtures; no external packages or network calls."""
 import json
+import stat
 from pathlib import Path
 import subprocess
 import sys
@@ -131,6 +132,7 @@ class ReviewCLITests(unittest.TestCase):
         outfile = Path(self.tmp.name) / "report.json"
         self.call("--format", "json", "--output", str(outfile))
         self.assertEqual(json.loads(outfile.read_text())["report_kind"], "local-snapshot")
+        self.assertEqual(stat.S_IMODE(outfile.stat().st_mode), 0o600)
         self.assertEqual(self.call("--output", str(outfile), ok=False).returncode, 2)
 
     def test_unknown_category_refuses(self):
