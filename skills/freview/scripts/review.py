@@ -110,8 +110,15 @@ def scope(args, config):
             selected.append(name)
     excluded = set(prefs.get("exclude", []))
     specialist = config.get("specialists", {})
-    if specialist.get("code_review") == "off":
+    explicit_code = ("code-review" in with_categories or "code-review" in only
+                     or args.mode == "full")
+    # Standard/quick are code-free unless user explicitly requests code review.
+    if mode != "full" and not explicit_code:
         excluded.add("code-review")
+    if specialist.get("code_review") == "off" and not explicit_code:
+        excluded.add("code-review")
+    if explicit_code:
+        excluded.discard("code-review")
     if specialist.get("security_scan") == "off":
         excluded.add("security-scan")
     excluded -= set(with_categories)
