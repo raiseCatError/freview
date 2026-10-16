@@ -96,7 +96,9 @@ def categories(items):
 
 def scope(args, config):
     prefs = config.get("defaults", {})
-    mode = args.mode or prefs.get("mode", "standard")
+    # Unattended reviews are always Standard unless the user explicitly picks
+    # a mode. Repository-controlled config cannot elevate to Full/source review.
+    mode = args.mode or ("quick" if prefs.get("mode") == "quick" else "standard")
     selected = list(QUICK if mode == "quick" else CORE if mode == "full" else METADATA)
     if mode == "full":
         selected.append("code-review")
@@ -130,7 +132,9 @@ def scope(args, config):
         excluded.add("code-review")
     if explicit_code:
         excluded.discard("code-review")
-    if specialist.get("security_scan") == "off" and "security-scan" not in with_categories:
+    if (specialist.get("security_scan") == "off" and
+            "security-scan" not in with_categories and
+            "security-scan" not in only):
         excluded.add("security-scan")
     excluded -= set(with_categories)
     excluded.update(categories(args.exclude))
@@ -143,6 +147,8 @@ def create_report(args):
         raise ValueError("Not inside a Git repository")
     root = Path(root_value)
     cfgpath = Path(args.config).expanduser() if args.config else root / ".freview.json"
+    if not args.config and cfgpath.is_symlink():
+        raise ValueError("Repository .freview.json is a symlink; explicit --config approval required")
     cfg = load_policy(cfgpath) if cfgpath.exists() or args.config else {}
     mode, included, excluded = scope(args, cfg)
     base = args.base or cfg.get("repository", {}).get("development_branch")
