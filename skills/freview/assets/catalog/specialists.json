@@ -114,8 +114,8 @@
       "name": "zizmor",
       "provider": "zizmorcore",
       "url": "https://github.com/zizmorcore/zizmor",
-      "stars": 6700,
-      "evidence": "Approximately 6700 stars, active 2026-10-2026",
+      "stars": 6716,
+      "evidence": "6716 stars, active 2026-10-16",
       "preference": "installed-and-authorized",
       "permissions": "Inspect GitHub Actions definitions; never auto-fix.",
       "notes": "GitHub Actions security, not code duplication."
