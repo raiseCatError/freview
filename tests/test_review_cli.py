@@ -61,6 +61,29 @@ class ReviewCLITests(unittest.TestCase):
         self.assertEqual(report["report_kind"], "local-snapshot")
         self.assertNotIn("untrusted working directory imported", result.stderr)
 
+    def test_local_publishing_and_uncommitted_layers_are_visible(self):
+        (self.root / "README.md").write_text("staged\\n")
+        run(self.root, "git", "add", "README.md")
+        (self.root / "README.md").write_text("unstaged\\n")
+        (self.root / "UNCOMMITTED.txt").write_text("not tracked\\n")
+        report = self.report("--mode", "full")
+        layers = report["local_snapshot"]["local_changes"]
+        self.assertEqual(layers["staged"]["count"], 1)
+        self.assertEqual(layers["unstaged"]["count"], 1)
+        self.assertEqual(layers["untracked"]["count"], 1)
+        self.assertEqual(report["report_kind"], "local-snapshot")
+        self.assertFalse(report["local_snapshot"]["publishing"]["remote_publishing_verified"])
+
+    def test_explicit_target_identity_refuses_wrong_checkout(self):
+        result = self.call("--expect-identity", "forge:github.com/example/other", ok=False)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Repository identity mismatch", result.stderr)
+        self.assertEqual(self.report()["report_kind"], "local-snapshot")
+
+    def test_zero_divergence_budget_is_allowed(self):
+        report = self.report("--max-divergences", "0")
+        self.assertEqual(report["local_snapshot"]["branch_divergence_budget"], 0)
+
     def test_standard_default_has_no_code_review(self):
         report = self.report()
         self.assertEqual(report["report_kind"], "local-snapshot")
