@@ -7,6 +7,9 @@ Always include:
 - Evidence-linked findings, including affected criterion or project requirement, source path/commit, relevant test/CI (exact SHA and jobs), human QA and actual release reachability.
 - Git history and integration: branch/worktree collisions, divergence, wrong PR bases, candidate chains, coverage limits, conflicts and duplicates; explicitly state when local branches are **not observable**.
 - Repository hygiene: project-dependent community, docs, security, dependency and accessibility findings (only selected/applicable areas).
+- A separate **actionable remediation plan for every confirmed actionable problem**, giving ordered repair steps, owner/dependencies, risks, effort uncertainty and concrete CI/QA validation. Plans never perform edits.
+- **Duplicate clusters** for issues, PRs, roadmap milestones, trackers and duplicate delivery efforts with confirmed vs suspected status and evidence; never code clones.
+- Implementation designs for never-started/new features **only when the user opts in** using `--suggest-implementation`.
 - A small prioritized list of *non-destructive* next actions; no assumption user approves fixes.
 - An explicit **Not checked / Not observable** table or paragraph.
 
@@ -25,6 +28,10 @@ Prefer directly observed code and Git metadata, forge API and CI receipts, signe
 | P1 | issue #... | available in released build | only isolated PR SHA, no release reachability | implemented isolated | integrate/test later |
 
 For large inventories, organize by area; provide counts **only for the enumerated scope** and say if pagination, permissions or recent changes mean the count may be partial. Avoid copying large private issue/CI contents or full files into reports.
+
+## Remediation and duplicate classification
+
+Follow [repair-plan rules](remediation.md) and [duplicate evidence rules](duplicates.md). The machine-readable agent report must include `remediation_plan` and `duplicate_clusters` for partial/full audits. Each confirmed actionable finding needs a repair plan or an explicit reason why it is blocked. Standard cannot invent exact code changes without source access; Full can use code reviewer evidence. Duplicate issue/PR/workflow candidates never auto-close.
 
 ## Completion wording
 
