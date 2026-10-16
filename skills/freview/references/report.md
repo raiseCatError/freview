@@ -56,3 +56,7 @@ Only compare reports with matching repository identity, report kind and category
 Do not automatically publish a local report to GitHub or include sensitive path/history content in public artifacts. The latest report always names excluded categories and unobserved evidence.
 
 JSON validation is structural only, **never execution authentication**. UTC timestamps must carry Z or +00:00. Comparison outputs use `absent_from_new_report` rather than `resolved`, because an unreported issue may simply not have been inspected. Reports remain private by default; manually screen local usernames, paths, secrets, private titles and branch names before publication.
+
+### Advisory privacy lint
+
+Use `python3 -I <installed-skill>/scripts/report_tools.py --check-public --format json REPORT.json` before considering public publication. Exit 3 means obvious private paths/credential shapes/control characters were found; exit 0 means no known patterns were found, **not** that the file is safe. This does not redact the report or inspect unobservable secrets; human review remains mandatory.
