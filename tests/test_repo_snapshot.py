@@ -52,6 +52,68 @@ class SnapshotTests(unittest.TestCase):
         self.assertFalse(result["status"]["clean"])
         self.assertEqual((self.root / "NOTES.md").read_text(), "Untracked\n")
 
+    def test_separates_staged_unstaged_and_untracked_paths(self):
+        (self.root / "README.md").write_text("staged\\n")
+        run(self.root, "git", "add", "README.md")
+        (self.root / "README.md").write_text("unstaged\\n")
+        (self.root / "local-only.txt").write_text("new work\\n")
+        result = self.invoke()
+        self.assertEqual(result["local_changes"]["staged"]["count"], 1)
+        self.assertEqual(result["local_changes"]["unstaged"]["count"], 1)
+        self.assertEqual(result["local_changes"]["untracked"]["count"], 1)
+        self.assertIn("README.md", result["local_changes"]["staged"]["sample_paths"])
+        self.assertIn("README.md", result["local_changes"]["unstaged"]["sample_paths"])
+        self.assertIn("local-only.txt", result["local_changes"]["untracked"]["sample_paths"])
+        self.assertTrue((self.root / "local-only.txt").exists())
+
+    def test_copied_history_without_upstream_is_not_claimed_published(self):
+        run(self.root, "git", "commit", "--allow-empty", "-qm", "local commit")
+        result = self.invoke()
+        self.assertEqual(result["publishing"]["state"], "no-configured-upstream")
+        self.assertFalse(result["publishing"]["remote_publishing_verified"])
+
+    def test_tracking_ahead_is_provisional_and_offline(self):
+        remote = Path(self.tmp.name) / "remote.git"
+        run(self.root, "git", "init", "-q", "--bare", str(remote))
+        run(self.root, "git", "remote", "add", "origin", str(remote))
+        run(self.root, "git", "push", "-q", "-u", "origin", "main")
+        run(self.root, "git", "commit", "--allow-empty", "-qm", "not pushed to fixture")
+        result = self.invoke()
+        self.assertEqual(result["publishing"]["ahead"], 1)
+        self.assertEqual(result["publishing"]["state"], "local-commits-ahead-of-cached-upstream")
+        self.assertFalse(result["publishing"]["remote_publishing_verified"])
+
+    def test_other_worktree_status_is_opt_in_and_bounded(self):
+        other = Path(self.tmp.name) / "sibling"
+        run(self.root, "git", "worktree", "add", "-qb", "feature/sibling", str(other))
+        (other / "untracked-local.txt").write_text("local\\n")
+        normal = self.invoke()
+        self.assertFalse(normal["other_worktrees_scanned"])
+        self.assertEqual(normal["worktree_status_checks"], [])
+        inspected = self.invoke("--scan-worktrees", "--max-worktrees", "1")
+        self.assertTrue(inspected["other_worktrees_scanned"])
+        self.assertEqual(inspected["worktree_status_checks"][0]["status"]["untracked"], 1)
+
+    def test_divergence_calls_are_bounded_across_branch_heads(self):
+        for i in range(9):
+            run(self.root, "git", "branch", "feature/" + str(i))
+        result = self.invoke("--base", "main", "--max-divergences", "1")
+        self.assertLessEqual(result["unique_branch_divergences_checked"], 1)
+        self.assertEqual(result["branch_divergences_skipped_due_budget"], 0)
+
+    def test_unborn_repo_is_inventoryable_without_claiming_commits(self):
+        empty = Path(self.tmp.name) / "unborn"
+        empty.mkdir()
+        run(empty, "git", "init", "-q", "-b", "main")
+        (empty / "initial.txt").write_text("not committed\\n")
+        p = subprocess.run([sys.executable, str(SCRIPT), "--json"], cwd=empty,
+                           text=True, capture_output=True)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        result = json.loads(p.stdout)
+        self.assertIsNone(result["head_sha"])
+        self.assertEqual(result["publishing"]["state"], "unborn-no-local-commits")
+        self.assertEqual(result["local_changes"]["untracked"]["count"], 1)
+
     def test_multiple_worktrees_reported(self):
         other = Path(self.tmp.name) / "other"
         run(self.root, "git", "worktree", "add", "-qb", "feature/example", str(other))
