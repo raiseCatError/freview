@@ -49,7 +49,7 @@ The portable [report.schema.json](../assets/schemas/freview-report.schema.json) 
 
 Use `python3 <installed-skill>/scripts/review.py --mode standard --format json` to generate a local snapshot to stdout. Pass an explicit `--output /approved/scratch/report.json` to write one new report file; the command never overwrites existing files or creates directories.
 
-Use `python3 <installed-skill>/scripts/report_tools.py REPORT.json` to validate the supported common report fields, and `python3 <installed-skill>/scripts/report_tools.py PRIOR.json CURRENT.json` to compare new/resolved/changed finding IDs. Add `--format json` for machine-readable delta. This standard-library validator is deliberately a limited structural validator, not a complete JSON Schema validator; downstream consumers may enforce the complete published schema separately.
+Use `python3 <installed-skill>/scripts/report_tools.py REPORT.json` to validate the supported common report fields, and `python3 <installed-skill>/scripts/report_tools.py PRIOR.json CURRENT.json` to compare new/resolved/changed finding IDs. Add `--format json` for machine-readable delta. The standard-library validator enforces the vocabulary used by freview's bundled v1 report schema (including nested types, permitted values, approval-only plans and manifest requirements). It is not a general-purpose JSON Schema validator for arbitrary external schemas.
 
 Only compare reports with matching repository identity, report kind and category coverage. A disappearing finding is a candidate for revalidation, not proof of remediation if investigation coverage differs. Without a supplied prior report, never pretend a previous daily run occurred.
 
