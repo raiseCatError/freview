@@ -17,10 +17,12 @@ def tokens(text):
             if len(x) > 2 and x not in STOP}
 
 
-def candidates(items):
+def candidates(items, max_pairs=1000):
     rows = []
     if len(items) > 3000:
         raise ValueError("Too many records")
+    if type(max_pairs) is not int or not 1 <= max_pairs <= 5000:
+        raise ValueError("max_pairs must be between 1 and 5000")
     for item in items:
         if not isinstance(item, dict):
             raise ValueError("Expected object records")
@@ -74,6 +76,8 @@ def candidates(items):
                 "title_overlap": round(similarity, 3),
                 "review": "Compare deliverable, acceptance and release scope; distinguish parent/child, backport and issue-to-implementation PR."
             })
+            if len(output) >= max_pairs:
+                return output  # Result cap reached; report coverage as possibly truncated.
     return output
 
 
@@ -81,6 +85,7 @@ def main():
     parser = argparse.ArgumentParser(description="Report possible duplicate work items")
     parser.add_argument("input", help="JSON list or object with items list")
     parser.add_argument("--format", choices=("json", "markdown"), default="markdown")
+    parser.add_argument("--max-pairs", type=int, default=1000, help="limit candidate output (1–5000)")
     args = parser.parse_args()
     try:
         source = Path(args.input)
@@ -90,10 +95,13 @@ def main():
         items = value.get("items") if isinstance(value, dict) else value
         if not isinstance(items, list):
             raise ValueError("Expected item list")
-        pairs = candidates(items)
+        pairs = candidates(items, max_pairs=args.max_pairs)
+        cap_reached = len(pairs) >= args.max_pairs
         if args.format == "json":
             print(json.dumps({"kind": "freview-duplicate-candidates/1",
                               "scanned": len(items), "pairs": pairs,
+                              "candidate_cap_reached": cap_reached,
+                              "coverage": "Possibly truncated at the candidate limit" if cap_reached else "Complete for supplied metadata",
                               "notice": "No automated duplicate confirmation or issue mutations"}, indent=2))
         else:
             print("# Potential duplicate work items\n\nNone are automatically confirmed.\n")
@@ -102,6 +110,8 @@ def main():
                 print("- " + x["kind"] + " " + x["id"] + " / " + y["kind"] + " " +
                       y["id"] + ": " + ", ".join(pair["signals"]))
             print("\nCandidates: " + str(len(pairs)))
+            if cap_reached:
+                print("Candidate cap reached; remaining pairs were not analyzed.")
         return 0
     except (OSError, ValueError, UnicodeError, json.JSONDecodeError) as error:
         print("freview duplicates: " + str(error), file=sys.stderr)
