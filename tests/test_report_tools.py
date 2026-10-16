@@ -62,6 +62,19 @@ class ReportTests(unittest.TestCase):
         after = self.write("new.json", sample(included=("git", "ci")))
         self.assertEqual(self.invoke(before, after, ok=False).returncode, 2)
 
+    def test_full_audit_requires_plan_and_duplicate_inventory(self):
+        bad = sample(kind="full-audit", mode="full")
+        self.assertEqual(self.invoke(self.write("bad.json", bad), ok=False).returncode, 2)
+        bad["remediation_plan"] = []
+        bad["duplicate_clusters"] = []
+        self.assertEqual(self.invoke(self.write("good.json", bad)).returncode, 0)
+
+    def test_agent_action_needs_approval(self):
+        bad = sample(kind="partial-audit")
+        bad["duplicate_clusters"] = []
+        bad["remediation_plan"] = [{"requires_approval": False, "verification": []}]
+        self.assertEqual(self.invoke(self.write("bad.json", bad), ok=False).returncode, 2)
+
     def test_missing_evidence_refuses(self):
         bad = sample([finding("x")])
         del bad["findings"][0]["evidence"]
