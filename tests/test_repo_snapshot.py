@@ -35,15 +35,12 @@ class SnapshotTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_git_output_budget_fails_closed(self):
-        from unittest import mock
-        oversized = b"x" * (SNAPSHOT.MAX_GIT_OUTPUT + 1)
-        with mock.patch.object(SNAPSHOT.os, "read", side_effect=[oversized]):
-            # A deliberately oversized pipe is rejected before its contents
-            # can be retained as an unbounded captured result.
-            with self.assertRaises(RuntimeError):
-                SNAPSHOT._bounded_command(
-                    [sys.executable, "-c", "import sys; sys.stdout.write('x' * 10000000)"],
-                    self.root, os.environ.copy(), 10, stdout_limit=4096)
+        # Run a real child that exceeds a small capture limit. Mocking os.read
+        # would also interfere with subprocess.Popen's own error pipe.
+        with self.assertRaisesRegex(RuntimeError, "byte budget"):
+            SNAPSHOT._bounded_command(
+                [sys.executable, "-c", "import sys; sys.stdout.write('x' * 100000)"],
+                self.root, os.environ.copy(), 10, stdout_limit=4096)
 
     def test_bounded_git_refs_preserve_truncation_signal(self):
         for i in range(6):
