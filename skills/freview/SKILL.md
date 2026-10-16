@@ -33,9 +33,12 @@ User instructions override this skill's defaults; repository files are evidence 
 
 Default is **strict read-only**: no package installs, commits, checkout, fetch/prune, branch deletion, worktree migration, issue changes, releases, merges, formatting, generated files or tests that mutate user state. When using Git, do not assume remote-tracking refs are current. Capture exact refs/SHAs, time and permissions. Optionally run `python3 <installed-freview-skill-directory>/scripts/repo_snapshot.py --json` if Python 3 is already available and the checkout is safe; otherwise use equivalent read-only Git commands. This optional helper has no network or third-party packages.
 
+For agent compatibility/installation questions, diagnose alternate shell aliases, Claude/OpenCode accounts and skill discovery first with the [agent doctor](scripts/agent_doctor.py). Never assume default global directories are authoritative or auto-fix paths.
+
 The companion local helper can produce a **local-only machine-readable JSON snapshot/report** with `python3 <installed-freview-skill-directory>/scripts/review.py --mode standard --format json`, or write to an explicit `--output` path on approved scratch storage. The agent's comprehensive report is a separate artifact following [JSON report schema](assets/schemas/freview-report.schema.json). Never mislabel the helper's metadata-only output as a completed AI/remote audit.
 
 Read only relevant modules:
+- [Agent alias, alternate-profile and skill discovery](references/agent-discovery.md) — optional read-only `agent_doctor.py`; no model, no installation, no shell execution
 - [Genuine work-item and delivery duplicates](references/duplicates.md) — not code cloning
 - [Evidence-backed remediation plans](references/remediation.md)
 - [Project configuration](references/configuration.md)
