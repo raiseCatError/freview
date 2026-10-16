@@ -13,7 +13,54 @@ from urllib.parse import urlsplit
 from pathlib import Path
 import subprocess
 import sys
+import stat
+import selectors
+import time
 
+
+
+MAX_GIT_OUTPUT = 4 * 1024 * 1024
+MAX_GIT_STDERR = 64 * 1024
+
+
+def _bounded_command(command, cwd, env, timeout, stdout_limit=MAX_GIT_OUTPUT,
+                     stderr_limit=MAX_GIT_STDERR):
+    """Read both pipes concurrently with fixed budgets; kill on overrun."""
+    with subprocess.Popen(command, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+        selector = selectors.DefaultSelector()
+        selector.register(proc.stdout, selectors.EVENT_READ, "stdout")
+        selector.register(proc.stderr, selectors.EVENT_READ, "stderr")
+        data = {"stdout": bytearray(), "stderr": bytearray()}
+        limits = {"stdout": stdout_limit, "stderr": stderr_limit}
+        deadline = time.monotonic() + timeout
+        try:
+            while selector.get_map():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise RuntimeError("Git subprocess timed out")
+                ready = selector.select(remaining)
+                if not ready:
+                    raise RuntimeError("Git subprocess timed out")
+                for key, _ in ready:
+                    channel = key.data
+                    allowed = limits[channel] - len(data[channel])
+                    chunk = os.read(key.fileobj.fileno(), min(65536, allowed + 1))
+                    if not chunk:
+                        selector.unregister(key.fileobj)
+                    elif len(chunk) > allowed:
+                        raise RuntimeError("Git subprocess " + channel + " exceeded byte budget")
+                    else:
+                        data[channel].extend(chunk)
+            proc.wait(timeout=max(0, deadline - time.monotonic()))
+        except (RuntimeError, OSError, subprocess.TimeoutExpired):
+            proc.kill()
+            proc.wait()
+            raise
+        finally:
+            selector.close()
+        return subprocess.CompletedProcess(command, proc.returncode,
+                                           bytes(data["stdout"]), bytes(data["stderr"]))
 
 
 def _disabled_filter_settings(cwd, env):
@@ -21,11 +68,8 @@ def _disabled_filter_settings(cwd, env):
     probe_command = ["git", "config", "--includes", "--null", "--name-only",
                      "--get-regexp", r"^filter\..*\.(clean|process|smudge)$"]
     try:
-        probe = subprocess.run(probe_command, cwd=cwd, env=env,
-                               stdin=subprocess.DEVNULL,
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                               check=False, timeout=10)
-    except (OSError, subprocess.TimeoutExpired) as exc:
+        probe = _bounded_command(probe_command, cwd, env, 10, stdout_limit=65536)
+    except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
         raise RuntimeError("Could not inspect Git filter settings safely") from exc
     if probe.returncode == 1:
         return []
@@ -62,16 +106,15 @@ def git(args, cwd=None, allowed_failure=False):
     env["GIT_ATTR_NOSYSTEM"] = "1"
     try:
         filter_overrides = _disabled_filter_settings(cwd, env)
-        p = subprocess.run(
+        p = _bounded_command(
             ["git", "--no-optional-locks",
              "-c", "core.fsmonitor=false",
              "-c", "core.hooksPath=" + os.devnull,
              "-c", "diff.external=",
              "-c", "core.pager=cat",
-             *filter_overrides, *args], cwd=cwd, env=env, stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=20
+             *filter_overrides, *args], cwd, env, 20
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
+    except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
         if allowed_failure:
             return None
         raise RuntimeError(f"Git could not run: {exc}") from exc
@@ -297,17 +340,25 @@ def ecosystems(root):
 def npm_root_alignment(root):
     manifest = root / "package.json"
     lock = root / "package-lock.json"
-    if manifest.is_symlink() or lock.is_symlink():
-        return {"applicable": True, "status": "unknown",
-                "reason": "Symlinked npm manifests were not read"}
-    if not (manifest.is_file() and lock.is_file()):
+    if not (manifest.exists() or manifest.is_symlink()) or not (lock.exists() or lock.is_symlink()):
         return {"applicable": False}
     try:
-        if manifest.stat().st_size > 2 * 1024 * 1024 or lock.stat().st_size > 16 * 1024 * 1024:
-            return {"applicable": True, "status": "unknown",
-                    "reason": "npm metadata exceeds bounded read size"}
-        package = json.loads(manifest.read_text(encoding="utf-8"))
-        locked = json.loads(lock.read_text(encoding="utf-8"))
+        def bounded_json(path, limit):
+            fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) |
+                         getattr(os, "O_NONBLOCK", 0))
+            with os.fdopen(fd, "rb") as stream:
+                info = os.fstat(stream.fileno())
+                if not stat.S_ISREG(info.st_mode):
+                    raise ValueError("npm metadata is not a regular file")
+                if info.st_size > limit:
+                    raise ValueError("npm metadata exceeds bounded read size")
+                raw = stream.read(limit + 1)
+            if len(raw) > limit:
+                raise ValueError("npm metadata exceeds bounded read size")
+            return json.loads(raw.decode("utf-8"))
+
+        package = bounded_json(manifest, 2 * 1024 * 1024)
+        locked = bounded_json(lock, 16 * 1024 * 1024)
         if not isinstance(package, dict) or not isinstance(locked, dict):
             return {"applicable": True, "status": "unknown",
                     "reason": "Expected JSON objects for both npm files"}
@@ -361,7 +412,7 @@ def snapshot(base=None, max_branches=200, categories=None,
     raw_refs = text(
         ["for-each-ref", "--sort=-committerdate",
          "--format=%(refname:short)%00%(objectname)%00%(upstream:short)%00%(upstream:track)",
-         "refs/heads"], root
+         "--count=" + str(max_branches + 1), "refs/heads"], root
     )
     all_rows = [x for x in raw_refs.splitlines() if x]
     branches = []
@@ -431,6 +482,7 @@ def snapshot(base=None, max_branches=200, categories=None,
         "unique_branch_divergences_checked": divergence_calls,
         "branch_divergences_skipped_due_budget": divergence_skipped,
         "branches_omitted": max(0, len(all_rows) - len(branches)),
+        "branches_omitted_is_lower_bound": len(all_rows) > max_branches,
         "community": community_files(root) if check_community else {},
         "ecosystems_root_only": ecosystems(root) if check_deps else {},
         "npm_root_alignment": (npm_root_alignment(root) if check_deps
