@@ -47,6 +47,31 @@ class DuplicateTests(unittest.TestCase):
              {"id": 2, "title": "Add Linux terminal fullscreen keyboard test"}]
         self.assertEqual(MOD.candidates(x), [])
 
+    def test_candidate_output_cap_preserves_unverified_status(self):
+        records = [
+            {"id": i, "title": "Restore queue output history from persistent session"}
+            for i in range(45)
+        ]
+        selected = MOD.candidates(records, max_pairs=12)
+        self.assertEqual(len(selected), 12)
+        self.assertTrue(all(item["status"] == "candidate-unverified"
+                            for item in selected))
+
+    def test_duplicate_cli_discloses_truncated_coverage(self):
+        with tempfile.TemporaryDirectory(prefix="freview-capped-") as temp:
+            data = Path(temp) / "items.json"
+            data.write_text(json.dumps([
+                {"id": i, "title": "Restore queue output history from persistent session"}
+                for i in range(12)
+            ]))
+            p = subprocess.run([sys.executable, str(SCRIPT), str(data),
+                                "--format", "json", "--max-pairs", "3"],
+                               capture_output=True, text=True)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            report = json.loads(p.stdout)
+            self.assertTrue(report["candidate_cap_reached"])
+            self.assertEqual(len(report["pairs"]), 3)
+
     def test_json_cli_no_mutation(self):
         with tempfile.TemporaryDirectory(prefix="freview-dupe-") as temp:
             path = Path(temp) / "issues.json"
