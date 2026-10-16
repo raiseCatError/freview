@@ -22,13 +22,17 @@ npx skills add raiseCatError/freview --skill freview
 npx skills add raiseCatError/freview --skill freview -g
 ```
 
-The `skills` installer supports Claude Code, Codex, OpenCode, Gemini and many other agents. It can create symlinks or copies depending on selected agent and platform; review permissions before installing. Run `npx skills add raiseCatError/freview --list` to inspect discovered skills without installing them. No official provider endorsement is implied.
+The `skills` installer supports Claude Code, Codex, OpenCode, **Antigravity CLI (`agy`)** and many other agents. It can create symlinks or copies depending on selected agent and platform; review permissions before installing. Run `npx skills add raiseCatError/freview --list` to inspect discovered skills without installing them. No official provider endorsement is implied.
 
-Gemini CLI also offers a native installation workflow:
+For **Antigravity CLI (`agy`)**, select the current dedicated agent target:
 
 ```sh
-gemini skills install https://github.com/raiseCatError/freview --path skills/freview
+npx skills add raiseCatError/freview --skill freview --agent antigravity-cli
 ```
+
+Antigravity CLI discovers project skills in `.agents/skills/freview/` and global skills in `~/.gemini/antigravity-cli/skills/freview/`. In the `agy` TUI, use `/skills` to verify discovery, then `/freview` to invoke it. **Verify the actual installed path** when using `-g`: a reported installer issue has placed Antigravity CLI skills in the universal directory rather than its dedicated global directory. See [Google's Antigravity skills documentation](https://antigravity.google/docs/skills?tab=cli).
+
+The older **Gemini CLI** was succeeded by Antigravity CLI for individual Free/Pro/Ultra accounts in June 2026; enterprise/API-key use of Gemini CLI continues. Do not use `gemini skills install` as the default setup path. See [Google's migration announcement](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/).
 
 Codex's native skill installer can install a GitHub repo path; OpenCode discovers `.agents/skills/freview/`; Claude Code supports project and user skill directories. Use agent-specific installation only if your installed version supports the required path.
 
