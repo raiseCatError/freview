@@ -43,12 +43,14 @@ class ReviewCLITests(unittest.TestCase):
         self.assertEqual(report["report_kind"], "local-snapshot")
         self.assertEqual(report["mode_requested"], "standard")
         self.assertNotIn("code-review", report["scope"]["included"])
+        self.assertNotIn("implementation", report["scope"]["included"])
         self.assertNotIn("security-scan", report["scope"]["included"])
         self.assertTrue(report["not_observed"])
 
     def test_full_includes_code_but_does_not_run_it(self):
         report = self.report("--mode", "full")
         self.assertIn("code-review", report["scope"]["included"])
+        self.assertIn("implementation", report["scope"]["included"])
         self.assertEqual(report["scope"]["specialists"]["code-review"], "agent-review-required")
         self.assertEqual(report["report_kind"], "local-snapshot")
 
@@ -82,6 +84,17 @@ class ReviewCLITests(unittest.TestCase):
         self.assertTrue(report["remediation_plan"])
         self.assertTrue(report["remediation_plan"][0]["requires_approval"])
         self.assertTrue(report["findings"][0]["remediation"]["steps"])
+
+    def test_repo_cannot_enable_implementation_in_daily_mode(self):
+        (self.root / ".freview.json").write_text(json.dumps({
+            "schema_version": 1,
+            "defaults": {"include": ["implementation", "code-review"]}
+        }))
+        report = self.report()
+        self.assertNotIn("implementation", report["scope"]["included"])
+        self.assertNotIn("code-review", report["scope"]["included"])
+        requested = self.report("--with", "implementation")
+        self.assertIn("implementation", requested["scope"]["included"])
 
     def test_explicit_full_not_narrowed_by_project_config(self):
         (self.root / ".freview.json").write_text(json.dumps({
