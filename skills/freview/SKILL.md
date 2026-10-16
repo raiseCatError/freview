@@ -3,7 +3,9 @@ name: freview
 description: Evidence-first full repository review across Git hygiene, issue/PR implementation status, CI, releases, docs, community, accessibility, dependencies and optional specialist reviews. Use when someone asks whether a repository is actually complete, healthy, ready to release or accurately tracked; adapt to any repository and show what was not verified.
 ---
 
-# freview — Full Repository Review
+# freview — Full Review
+
+Pronounce **freview** as **“f-review”** (F + review); it means **Full Review**, not “free-view” or “fre-view”.
 
 You are the **audit coordinator**, not a code refactoring agent. Review any repository, including monorepos, documentation-only projects, packages, apps, archived repositories, and projects without GitHub. Do not assume Node, a particular operating system, public hosting, or any single branch strategy.
 
