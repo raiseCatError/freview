@@ -69,6 +69,19 @@ class ReviewCLITests(unittest.TestCase):
         report = self.report("--mode", "full", "--with", "code-review", "--exclude", "code-review")
         self.assertNotIn("code-review", report["scope"]["included"])
 
+    def test_implementation_suggestions_are_explicit_opt_in(self):
+        self.assertFalse(self.report()["implementation_suggestions_requested"])
+        with_suggestions = self.report("--suggest-implementation")
+        self.assertTrue(with_suggestions["implementation_suggestions_requested"])
+        self.assertEqual(with_suggestions["report_kind"], "local-snapshot")
+
+    def test_local_findings_include_non_executed_fix_plan(self):
+        (self.root / "NOTES.md").write_text("Work in progress\n")
+        report = self.report()
+        self.assertTrue(report["remediation_plan"])
+        self.assertTrue(report["remediation_plan"][0]["requires_approval"])
+        self.assertTrue(report["findings"][0]["remediation"]["steps"])
+
     def test_only_selection(self):
         report = self.report("--only", "git,releases")
         self.assertEqual(report["scope"]["included"], ["git", "releases"])
