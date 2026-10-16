@@ -175,6 +175,71 @@ def status_counts(root):
             "clean": tracked + untracked == 0}
 
 
+def local_change_inventory(root, max_paths=40):
+    """Enumerate the current checkout; never reads the contents of changed files.
+
+    Porcelain -z avoids quoting ambiguities. This captures staged, unstaged
+    and untracked paths separately, including local work not committed anywhere.
+    Paths are private metadata and must not be published without review.
+    """
+    raw = git(["status", "--porcelain=v1", "-z", "--untracked-files=normal",
+               "--ignore-submodules=all"], root)
+    staged, unstaged, untracked = [], [], []
+    fields = raw.split(b"\0")
+    i = 0
+    while i < len(fields):
+        item = fields[i]
+        i += 1
+        if not item:
+            continue
+        status = item[:2]
+        path = item[3:].decode("utf-8", "backslashreplace")
+        if status == b"??":
+            untracked.append(path)
+        else:
+            if status[:1] not in (b" ", b"?"):
+                staged.append(path)
+            if status[1:] not in (b" ", b"?"):
+                unstaged.append(path)
+            if b"R" in status or b"C" in status:
+                i += 1  # Git's rename/copy record has a second NUL-terminated path.
+    def bucket(paths):
+        return {"count": len(paths), "sample_paths": paths[:max_paths],
+                "omitted": max(0, len(paths) - max_paths)}
+    return {"staged": bucket(staged), "unstaged": bucket(unstaged),
+            "untracked": bucket(untracked),
+            "note": "Only path/status inventory, not a code review or a diff-content audit. "
+                    "Ignored files and other worktrees are not included. Treat local paths as private."}
+
+
+def cached_tracking_state(root, head_sha):
+    """Never assert 'pushed' based solely on possibly stale remote-tracking refs."""
+    remote = text(["remote"], root, True)
+    upstream = text(["rev-parse", "--abbrev-ref", "--symbolic-full-name",
+                     "@{upstream}"], root, True)
+    upstream_sha = commit(upstream, root) if upstream and head_sha else None
+    counts = divergence(upstream_sha, head_sha, root) if upstream_sha else None
+    if head_sha is None:
+        state = "unborn-no-local-commits"
+    elif not upstream:
+        state = "no-configured-upstream"
+    elif counts is None:
+        state = "tracking-comparison-unavailable"
+    elif counts["ahead"]:
+        state = "local-commits-ahead-of-cached-upstream"
+    elif counts["behind"]:
+        state = "behind-cached-upstream"
+    else:
+        state = "matches-cached-upstream"
+    return {"state": state, "upstream": upstream, "cached_upstream_sha": upstream_sha,
+            "ahead": counts["ahead"] if counts else None,
+            "behind": counts["behind"] if counts else None,
+            "remotes_configured": bool(remote),
+            "remote_publishing_verified": False,
+            "note": "Cached refs cannot prove whether commits have been pushed to any remote. "
+                    "Verify remotely for publication, CI and release claims."}
+
+
 def worktree_list(root):
     raw = text(["worktree", "list", "--porcelain"], root)
     entries = []
@@ -273,7 +338,8 @@ def npm_root_alignment(root):
         return {"applicable": True, "status": "unknown", "reason": str(exc)[:200]}
 
 
-def snapshot(base=None, max_branches=200, categories=None):
+def snapshot(base=None, max_branches=200, categories=None,
+             max_divergences=40, scan_worktrees=False, max_worktrees=12):
     # The standalone snapshot inspects all local structural categories; the
     # config-aware helper passes explicit selected categories and must not read
     # dependency/community files when the user excluded them.
@@ -282,7 +348,7 @@ def snapshot(base=None, max_branches=200, categories=None):
     check_community = selected is None or bool(
         selected & {"community", "docs", "accessibility"})
     root = Path(text(["rev-parse", "--show-toplevel"])).resolve()
-    head = text(["rev-parse", "HEAD"], root)
+    head = text(["rev-parse", "HEAD"], root, True)
     branch = text(["symbolic-ref", "-q", "--short", "HEAD"], root, True)
     upstream = text(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], root, True)
     remote_head = text(["symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"], root, True)
@@ -299,18 +365,51 @@ def snapshot(base=None, max_branches=200, categories=None):
     )
     all_rows = [x for x in raw_refs.splitlines() if x]
     branches = []
+    divergence_cache = {}
+    divergence_calls = 0
+    divergence_skipped = 0
     for line in all_rows[:max_branches]:
         name, sha, track, state = (line.split("\0") + [""] * 4)[:4]
+        compared = None
+        if base_sha:
+            if sha in divergence_cache:
+                compared = divergence_cache[sha]
+            elif divergence_calls < max_divergences:
+                compared = divergence(base_sha, sha, root)
+                divergence_cache[sha] = compared
+                divergence_calls += 1
+            else:
+                divergence_skipped += 1
         branches.append({
             "name": name, "sha": sha, "upstream": track or None,
             "tracking": state or None,
             "worktrees": [w["path"] for w in trees if w["branch"] == name],
-            "base_divergence": divergence(base_sha, sha, root) if base_sha else None,
+            "base_divergence": compared,
+            "divergence_checked": bool(base_sha and sha in divergence_cache),
         })
     uncommitted_checks = {
         "working_diff_clean": git(["diff", "--no-ext-diff", "--no-textconv", "--check"], root, True) is not None,
         "staged_diff_clean": git(["diff", "--cached", "--no-ext-diff", "--no-textconv", "--check"], root, True) is not None,
     }
+    other_worktree_checks = []
+    if scan_worktrees:
+        for entry in trees:
+            if entry.get("path") == str(root):
+                continue
+            if len(other_worktree_checks) >= max_worktrees:
+                break
+            other_root = entry.get("path")
+            try:
+                other_worktree_checks.append({
+                    "path": other_root, "branch": entry.get("branch"),
+                    "sha": entry.get("sha"),
+                    "status": status_counts(Path(other_root)),
+                })
+            except (RuntimeError, OSError) as exc:
+                other_worktree_checks.append({
+                    "path": other_root, "status": "not-observed",
+                    "reason": str(exc)[:160],
+                })
     return {
         "kind": "freview-local-readonly", "collected_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
         "root": str(root), "head_sha": head, "branch": branch,
@@ -320,7 +419,17 @@ def snapshot(base=None, max_branches=200, categories=None):
         if base_sha else None,
         "shallow": text(["rev-parse", "--is-shallow-repository"], root) == "true",
         "status": status_counts(root), "uncommitted_whitespace": uncommitted_checks,
-        "worktrees": trees, "branches": branches,
+        "local_changes": local_change_inventory(root),
+        "publishing": cached_tracking_state(root, head),
+        "worktrees": trees, "worktree_status_checks": other_worktree_checks,
+        "other_worktrees_scanned": bool(scan_worktrees),
+        "worktrees_not_scanned": max(0, len(trees) - 1 -
+                                      len(other_worktree_checks)) if scan_worktrees else
+                                 max(0, len(trees) - 1),
+        "branches": branches,
+        "branch_divergence_budget": max_divergences,
+        "unique_branch_divergences_checked": divergence_calls,
+        "branch_divergences_skipped_due_budget": divergence_skipped,
         "branches_omitted": max(0, len(all_rows) - len(branches)),
         "community": community_files(root) if check_community else {},
         "ecosystems_root_only": ecosystems(root) if check_deps else {},
@@ -328,7 +437,9 @@ def snapshot(base=None, max_branches=200, categories=None):
                                else {"applicable": False, "not_checked": True}),
         "limitations": [
             "Remote-tracking refs may be stale: no fetch was performed.",
-            "Only the current worktree's dirtiness is checked; other worktree contents are not read.",
+            "Other worktrees are not inspected by default; --scan-worktrees is bounded and opt-in.",
+            "Staged/unstaged/untracked paths are inventoried, but their contents and ignored files are not audited.",
+            "Remote-tracking refs cannot establish whether local commits have been pushed.",
             "No GitHub/GitLab issue, PR, security alert, CI, deployment or release evidence is collected.",
             "No source behavior, physical accessibility or deep code review was performed.",
             "Root-level ecosystem discovery is not exhaustive for monorepos.",
@@ -341,11 +452,24 @@ def main():
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     ap.add_argument("--base", default=None, help="exact locally available comparison ref")
     ap.add_argument("--max-branches", type=int, default=200, help="cap branch table length")
+    ap.add_argument("--max-divergences", type=int, default=40,
+                    help="max unique branch-vs-base divergence calculations, default 40")
+    ap.add_argument("--scan-worktrees", action="store_true",
+                    help="opt-in read-only status of other worktrees (metadata only)")
+    ap.add_argument("--max-worktrees", type=int, default=12,
+                    help="max other worktree status checks, default 12")
     a = ap.parse_args()
     if not 1 <= a.max_branches <= 2000:
         ap.error("--max-branches must be between 1 and 2000")
+    if not 0 <= a.max_divergences <= 2000:
+        ap.error("--max-divergences must be between 0 and 2000")
+    if not 1 <= a.max_worktrees <= 40:
+        ap.error("--max-worktrees must be between 1 and 40")
     try:
-        result = snapshot(a.base, a.max_branches)
+        result = snapshot(a.base, a.max_branches,
+                          max_divergences=a.max_divergences,
+                          scan_worktrees=a.scan_worktrees,
+                          max_worktrees=a.max_worktrees)
     except RuntimeError as exc:
         print(f"freview: {exc}", file=sys.stderr)
         return 2

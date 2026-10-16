@@ -169,7 +169,15 @@ def create_report(args):
     mode, included, excluded = scope(args, cfg)
     base = args.base or cfg.get("repository", {}).get("development_branch")
     snap = snapshot(base, cfg.get("limits", {}).get("max_branches", 200),
-                    categories=included)
+                    categories=included,
+                    max_divergences=args.max_divergences,
+                    scan_worktrees=args.scan_worktrees,
+                    max_worktrees=args.max_worktrees)
+    if args.expect_identity and snap["repo_identity"] != args.expect_identity:
+        raise ValueError("Repository identity mismatch: expected " +
+                         args.expect_identity + "; observed " +
+                         str(snap["repo_identity"]) +
+                         ". Refusing to audit the wrong checkout.")
     findings = []
     if not snap["status"]["clean"] and "git" in included:
         findings.append({
@@ -185,6 +193,17 @@ def create_report(args):
             "evidence": ["package.json", "package-lock.json"],
             "next_action": "Review the drift; never regenerate a lockfile automatically"
         })
+    publishing = snap["publishing"]
+    if "git" in included and publishing["state"] == "local-commits-ahead-of-cached-upstream":
+        findings.append({
+            "id": "unpublished-local-commits-candidate",
+            "severity": "informational", "category": "git",
+            "summary": "Local commits are ahead of the cached tracking ref; "
+                       "remote publication is not confirmed",
+            "status": "observed",
+            "evidence": ["git rev-list --left-right --count <cached-upstream>...HEAD"],
+            "next_action": "Check authoritative remote state before claiming pushed/unpushed status"
+        })
     # These steps are recommendations, never automatically executed.
     proposed = []
     for finding in findings:
@@ -192,6 +211,10 @@ def create_report(args):
             steps = ["Identify which manifest or lockfile reflects intended direct dependencies",
                      "Reconcile only after developer approval in a separate change"]
             verification = ["Check ecosystem-native lock consistency and approved CI"]
+        elif finding["id"] == "unpublished-local-commits-candidate":
+            steps = ["Compare exact commit SHAs to the authoritative remote without mutating local refs",
+                     "Do not equate cached tracking differences with unpublished status"]
+            verification = ["Confirm publication with trusted forge metadata"]
         else:
             steps = ["Identify the owner and purpose of each local change before any cleanup"]
             verification = ["Confirm intended worktree state with its owner"]
@@ -209,7 +232,9 @@ def create_report(args):
         "Local-only structural snapshot, not a completed AI or remote repository audit.",
         "Hosted issues/PRs, CI jobs, releases, deployments and security alerts not fetched.",
         "Feature reachability, code review and physical accessibility were not verified.",
-        "Uncommitted state of other worktrees and remote freshness were not inspected."
+        "Remote publishing of local commits is unverified; cached tracking refs may be stale.",
+        "Uncommitted state of other worktrees was not inspected unless --scan-worktrees was explicitly requested.",
+        "Diff contents, ignored/untracked file contents, and local-only feature reachability were not reviewed by the helper."
     ]
     if "code-review" in included:
         unobserved.append("Code review is selected but requires an agent/specialist; helper did not run one.")
@@ -267,6 +292,13 @@ def main():
     ap = argparse.ArgumentParser(description="freview read-only local metadata")
     ap.add_argument("--mode", choices=("quick", "standard", "full"))
     ap.add_argument("--base")
+    ap.add_argument("--expect-identity", help="fail closed if this checkout's canonical identity differs")
+    ap.add_argument("--max-divergences", type=int, default=40,
+                    help="cap unique branch/base graph comparisons")
+    ap.add_argument("--scan-worktrees", action="store_true",
+                    help="explicitly inspect other local worktree statuses (read-only)")
+    ap.add_argument("--max-worktrees", type=int, default=12,
+                    help="max other worktree status checks")
     ap.add_argument("--config", help="project config; auto-detected from root if present")
     ap.add_argument("--only", action="append", default=[])
     ap.add_argument("--exclude", action="append", default=[])
@@ -275,6 +307,10 @@ def main():
     ap.add_argument("--format", choices=("json", "markdown"), default="markdown")
     ap.add_argument("--output", help="explicit output path; stdout is default (no file writes)")
     args = ap.parse_args()
+    if not 0 <= args.max_divergences <= 2000:
+        ap.error("--max-divergences must be between 0 and 2000")
+    if not 1 <= args.max_worktrees <= 40:
+        ap.error("--max-worktrees must be between 1 and 40")
     try:
         report, cfgpath = create_report(args)
         output = (json.dumps(report, indent=2) + "\n"

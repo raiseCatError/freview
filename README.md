@@ -111,6 +111,20 @@ python3 skills/freview/scripts/agent_doctor.py --format json
 
 No AI tokens, shell startup execution, installations, account switching, GitHub calls or filesystem changes. Dynamic wrappers and sourced configuration files may need `--shell-config PATH` and are reported as unresolved rather than guessed. Static presence **does not establish skill activation**; verify through each agent's native skill list. See [agent discovery limitations and safety](skills/freview/references/agent-discovery.md).
 
+## Local work versus GitHub-only review
+
+freview now distinguishes **untracked work**, **staged changes**, **unstaged changes**, **locally committed changes**, **commits ahead of cached upstream**, **other worktrees**, and **live hosted CI/publication evidence**. The local helper reports private status/path metadata but does not read diff bodies or verify a remote push; a Full agent review must inspect the relevant source changes separately. A GitHub-only review explicitly states that local-only work is unobservable. A directory with `git init` but no commits is supported; a non-Git folder needs agent-guided bounded file inspection rather than Git snapshots.
+
+```sh
+python3 -I skills/freview/scripts/repo_snapshot.py --json --max-divergences 40
+python3 -I skills/freview/scripts/review.py --mode full --format json \
+  --expect-identity forge:github.com/raisecaterror/freview
+# Opt-in only: status of other worktrees, never their source or full test suites
+python3 -I skills/freview/scripts/repo_snapshot.py --json --scan-worktrees --max-worktrees 8
+```
+
+The comparison base defaults to a cached remote HEAD if available; this is **not** automatically the real development/integration base. Use `--base` when it is known, and never call cached tracking data definitive proof of a push. Full details: [local-state evidence policy](skills/freview/references/local-state.md).
+
 ## Local read-only helper
 
 This is **optional**. It requires Python 3 and Git already installed. From the source checkout:
