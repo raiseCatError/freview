@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import stat
 
 sys.dont_write_bytecode = True  # Avoid creating __pycache__ during an audit.
 
@@ -48,15 +49,26 @@ def check_str_list(value, key, max_count, max_length, choices=None):
         raise ValueError(key + " must be a bounded unique list of allowed strings")
 
 
-def load_policy(path):
-    if not path.is_file():
-        raise ValueError("Config file not found: " + str(path))
-    if path.stat().st_size > 65536:
-        raise ValueError("Config exceeds 64 KiB")
+def load_policy(path, allow_symlink=False):
     try:
-        policy = json.loads(path.read_text(encoding="utf-8"))
+        # Read from a single opened regular-file descriptor. Implicit config
+        # never follows a symlink; explicit --config remains deliberate opt-in.
+        flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)
+        if not allow_symlink:
+            flags |= getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(path, flags)
+        with os.fdopen(fd, "rb") as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode):
+                raise ValueError("Config is not a regular file")
+            if info.st_size > 65536:
+                raise ValueError("Config exceeds 64 KiB")
+            raw = stream.read(65537)
+        if len(raw) > 65536:
+            raise ValueError("Config exceeds 64 KiB")
+        policy = json.loads(raw.decode("utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise ValueError("Invalid config JSON: " + str(exc)) from exc
+        raise ValueError("Invalid config JSON or unreadable config: " + str(exc)) from exc
     if not isinstance(policy, dict) or set(policy) - {"schema_version", *SECTIONS}:
         raise ValueError("Unexpected top-level config keys")
     if type(policy.get("schema_version")) is not int or policy["schema_version"] != 1:
@@ -165,7 +177,7 @@ def create_report(args):
     cfgpath = Path(args.config).expanduser() if args.config else root / ".freview.json"
     if not args.config and cfgpath.is_symlink():
         raise ValueError("Repository .freview.json is a symlink; explicit --config approval required")
-    cfg = load_policy(cfgpath) if cfgpath.exists() or args.config else {}
+    cfg = load_policy(cfgpath, allow_symlink=bool(args.config)) if cfgpath.exists() or args.config else {}
     mode, included, excluded = scope(args, cfg)
     base = args.base or cfg.get("repository", {}).get("development_branch")
     snap = snapshot(base, cfg.get("limits", {}).get("max_branches", 200),
