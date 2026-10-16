@@ -35,7 +35,9 @@ Default is **strict read-only**: no package installs, commits, checkout, fetch/p
 
 For agent compatibility/installation questions, diagnose alternate shell aliases, Claude/OpenCode accounts and skill discovery first with the [agent doctor](scripts/agent_doctor.py). Never assume default global directories are authoritative or auto-fix paths.
 
-The companion local helper can produce a **local-only machine-readable JSON snapshot/report** with `python3 <installed-freview-skill-directory>/scripts/review.py --mode standard --format json`, or write to an explicit `--output` path on approved scratch storage. The agent's comprehensive report is a separate artifact following [JSON report schema](assets/schemas/freview-report.schema.json). Never mislabel the helper's metadata-only output as a completed AI/remote audit.
+The local CLI explicitly imports its bundled sibling helper to support `python3 -I` even when run from an unrelated repository. Do not disable Python isolation to work around missing package files.
+
+The companion local helper can produce a **local-only machine-readable JSON snapshot/report** with `python3 -I <installed-freview-skill-directory>/scripts/review.py --mode standard --format json`, or write to an explicit `--output` path on approved scratch storage. The agent's comprehensive report is a separate artifact following [JSON report schema](assets/schemas/freview-report.schema.json). Never mislabel the helper's metadata-only output as a completed AI/remote audit.
 
 Read only relevant modules:
 - [Agent alias, alternate-profile and skill discovery](references/agent-discovery.md) — optional read-only `agent_doctor.py`; no model, no installation, no shell execution
