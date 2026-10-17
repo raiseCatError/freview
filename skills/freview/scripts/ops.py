@@ -882,6 +882,26 @@ def _review_feedback(findings: list[dict]) -> str:
     )
 
 
+def _mutation_report_identity(workspace: Path) -> dict:
+    """Observe only known mutator artifact metadata before/after execution.
+
+    A pre-existing committed mutation report is not evidence of *this* run.
+    The freshness check is not a signature or a defense against malicious code.
+    """
+    observed = {}
+    for relative in ("reports/mutation/mutation.json",
+                     "mutants/mutmut-cicd-stats.json"):
+        path = workspace / relative
+        try:
+            details = path.lstat()
+            observed[relative] = (
+                details.st_mtime_ns, details.st_size, details.st_mode,
+                details.st_ino)
+        except FileNotFoundError:
+            observed[relative] = None
+    return observed
+
+
 def _mutation_report_summary(verifier: Path, options: dict) -> dict:
     """Inspect only a bounded report in the actual mutation-stage workspace."""
     spec = importlib.util.spec_from_file_location(
@@ -940,8 +960,12 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
     def verify_stage(stage: str, cycle_index: int, *, prompt: str = "") -> dict:
         digest = _workspace_digest(workspace)
         verifier = _verification_copy(workspace, storage, stage, cycle_index)
+        mutation_before = _mutation_report_identity(verifier) if stage == "mutation" else None
         report = _execute(stage, policy, verifier, verifier.parent, sha,
                           prompt=prompt, allow_credentials=allow_credentials)
+        if stage == "mutation":
+            mutation_after = _mutation_report_identity(verifier)
+            report["mutation_report_fresh"] = mutation_before != mutation_after
         report["verification_workspace"] = str(verifier)
         report["candidate_digest"] = digest
         report["source_entries_modified"] = _original_entries_changed(workspace, verifier)
@@ -1063,6 +1087,11 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                     mutation_quality = _mutation_report_summary(
                         Path(result["verification_workspace"]),
                         policy["mutation_quality"])
+                    if not result["mutation_report_fresh"]:
+                        mutation_quality = {
+                            **mutation_quality, "status": "incomplete",
+                            "quality_pass": False,
+                            "reason_code": "report-not-updated"}
                     result["mutation_quality"] = {
                         "status": mutation_quality["status"],
                         "score": mutation_quality.get("score"),
