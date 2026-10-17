@@ -213,6 +213,29 @@ class PipelineContractTests(unittest.TestCase):
         self.assertEqual(result["review"]["status"], "approved-claim")
         self.assertIsNone(result["shipping"])
 
+    def test_repeated_findings_stop_even_when_worker_changes_unrelated_files(self):
+        worker=(
+          "from pathlib import Path;"
+          "p=Path('progress.txt');"
+          "n=int(p.read_text()) if p.exists() else 0;"
+          "p.write_text(str(n+1))"
+        )
+        reviewer=(
+          "import sys,json,re;"
+          "s=sys.stdin.read();"
+          "a=re.search(r'SOURCE_SHA: ([a-f0-9]{40})',s).group(1);"
+          "b=re.search(r'WORKSPACE_DIGEST: ([a-f0-9]{64})',s).group(1);"
+          "print(json.dumps(dict(schema_version=1,source_sha=a,workspace_digest=b,"
+          "verdict='changes_requested',"
+          "findings=[dict(id='R1',severity='high',path='src/module.py',"
+          "description='Still missing guard',evidence='Same line is unprotected')],"
+          "reviewed_paths=['src/module.py'],reason='same problem')))"
+        )
+        result=self.run_pipeline(self.policy(reviewer,worker=worker))
+        self.assertEqual(result["review_cycles"],2)
+        self.assertEqual(result["verdict"],"stalled-review-findings")
+        self.assertIsNone(result["shipping"])
+
     def test_requested_changes_stop_at_three_cycles(self):
         reviewer = (
           "import sys,json,re;"
