@@ -204,6 +204,30 @@ class OptionalOperationsTests(unittest.TestCase):
             ops.run_stage("tests", policy, self.repo, inside,
                           allow_execute=True, expected_sha=self.head)
 
+    def test_hooks_install_and_uninstall_never_touch_other_hooks(self):
+        policy = self.policy(hooks=True)
+        path = self.repo / ".freview-ops.json"
+        path.write_text(json.dumps(policy))
+        git(self.repo, "add", ".freview-ops.json")
+        git(self.repo, "commit", "-qm", "opt in hooks")
+        untouched = self.repo / ".git" / "hooks" / "post-commit"
+        untouched.write_text("#!/bin/sh\\nexit 0\\n")
+        installed = ops.install_hooks(policy, self.repo, allow_install=True)
+        self.assertEqual(len(installed), 2)
+        for hook in installed:
+            self.assertIn(ops.MARKER, Path(hook).read_text())
+        removed = ops.uninstall_hooks(self.repo)
+        self.assertEqual(set(installed), set(removed))
+        self.assertTrue(untouched.exists())
+        self.assertFalse((self.repo / ".git" / "hooks" / "pre-commit").exists())
+
+    def test_hook_rejects_existing_remote_updates_without_proven_ancestry(self):
+        policy = self.policy(hooks=True)
+        self.assertFalse(ops.hook_allowed("pre-push", policy, branch="feature/x",
+            updates=["refs/heads/feature/x " + "a" * 40 + " refs/heads/feature/x " + "b" * 40]))
+        self.assertTrue(ops.hook_allowed("pre-push", policy, branch="feature/x",
+            updates=["refs/heads/feature/x " + "a" * 40 + " refs/heads/feature/x " + "0" * 40]))
+
     def test_unapproved_hook_install_refused_and_existing_hook_preserved(self):
         policy = self.policy(hooks=True)
         with self.assertRaises(ops.OpsError):
