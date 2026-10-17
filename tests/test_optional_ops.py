@@ -66,6 +66,21 @@ class OptionalOperationsTests(unittest.TestCase):
         with self.assertRaises(ops.OpsError):
             ops.validate_policy({"schema_version": 1, "limits": {"max_rounds": 4}})
 
+    def test_agent_credentials_are_never_forwarded_implicitly(self):
+        payload = {"schema_version": 1, "modules": {"adversarial": True},
+                   "commands": {"adversarial": [sys.executable, "-c", "pass"]},
+                   "pass_env": ["HOME"]}
+        policy = ops.validate_policy(payload)
+        with self.assertRaises(ops.OpsError):
+            ops.run_stage("adversarial", policy, self.repo, self.scratch,
+                          allow_execute=True, expected_sha=self.head)
+        report = ops.run_stage("adversarial", policy, self.repo, self.scratch,
+                               allow_execute=True, allow_credentials=True,
+                               expected_sha=self.head)
+        self.assertEqual(report["status"], "passed")
+        with self.assertRaises(ops.OpsError):
+            ops.validate_policy({"schema_version": 1, "pass_env": ["GITHUB_TOKEN"]})
+
     def test_policy_disallows_shell_and_package_installs_by_default(self):
         for command in (["sh", "-c", "echo hi"], ["bash", "-lc", "true"],
                         ["pip", "install", "something"], ["npm", "install"],
