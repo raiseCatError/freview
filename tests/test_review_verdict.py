@@ -165,6 +165,19 @@ class PipelineContractTests(unittest.TestCase):
         result = self.run_pipeline(self.policy(reviewer))
         self.assertEqual(result["verdict"], "review-invalid")
 
+    def test_reviewer_must_name_real_inspected_files(self):
+        reviewer = (
+          "import sys,json,re;"
+          "s=sys.stdin.read();"
+          "a=re.search(r'SOURCE_SHA: ([a-f0-9]{40})',s).group(1);"
+          "b=re.search(r'WORKSPACE_DIGEST: ([a-f0-9]{64})',s).group(1);"
+          "print(json.dumps(dict(schema_version=1,source_sha=a,workspace_digest=b,"
+          "verdict='approve',findings=[],reviewed_paths=['src/imaginary.py'],reason='claimed'))) "
+        )
+        result = self.run_pipeline(self.policy(reviewer))
+        self.assertEqual(result["verdict"], "review-invalid")
+        self.assertIsNone(result["shipping"])
+
     def test_reviewer_must_not_mutate_worker_snapshot(self):
         reviewer = (
           "from pathlib import Path;Path('src/module.py').write_text('BAD=1');"
