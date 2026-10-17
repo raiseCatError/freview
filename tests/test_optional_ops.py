@@ -289,6 +289,18 @@ class OptionalOperationsTests(unittest.TestCase):
         self.assertTrue(untouched.exists())
         self.assertFalse((self.repo / ".git" / "hooks" / "pre-commit").exists())
 
+    def test_existing_branch_push_checks_actual_fast_forward(self):
+        policy = self.policy(hooks=True)
+        before = self.head
+        git(self.repo, "commit", "--allow-empty", "-qm", "fast forward")
+        after = git(self.repo, "rev-parse", "HEAD")
+        forward = ["refs/heads/feature/x " + after + " refs/heads/feature/x " + before]
+        reverse = ["refs/heads/feature/x " + before + " refs/heads/feature/x " + after]
+        self.assertTrue(ops.hook_allowed("pre-push", policy, branch="feature/x",
+                                        updates=forward, repo=self.repo))
+        self.assertFalse(ops.hook_allowed("pre-push", policy, branch="feature/x",
+                                         updates=reverse, repo=self.repo))
+
     def test_hook_rejects_existing_remote_updates_without_proven_ancestry(self):
         policy = self.policy(hooks=True)
         self.assertFalse(ops.hook_allowed("pre-push", policy, branch="feature/x",
