@@ -12,7 +12,9 @@ It produces a review, not a cleanup script. Default operations are **read-only**
 
 > **Status:** Pre-release read-only preview for trusted repositories; **no version has been tagged or published**. Installation and native discovery depend on agent/runtime configuration. A Full review is not a security certification or physical-device verification.
 
-**Current evidence:** [PR #14](https://github.com/raiseCatError/freview/pull/14) merged at [`b4e9de58`](https://github.com/raiseCatError/freview/commit/b4e9de581107b8b78b4a710a5be93fa4e90510e8), with [99 Python tests passing on both Ubuntu and macOS](https://github.com/raiseCatError/freview/actions/runs/38983887532). User-provided field evidence reports native invocation in Antigravity CLI, Claude Code, Codex and OpenCode; this is **not** four independently re-executed Full audits, and OpenCode's full five-gate acceptance matrix remains unobserved.
+**Pre-evidence-reconciliation baseline:** [PR #14](https://github.com/raiseCatError/freview/pull/14) merged at [`b4e9de58`](https://github.com/raiseCatError/freview/commit/b4e9de581107b8b78b4a710a5be93fa4e90510e8), with [99 Python tests passing on both Ubuntu and macOS](https://github.com/raiseCatError/freview/actions/runs/38983887532). User-provided field evidence reports native invocation in Antigravity CLI, Claude Code, Codex and OpenCode; this is **not** four independently re-executed Full audits, and OpenCode's full five-gate acceptance matrix remains unobserved.
+
+**In-progress enhancement:** [draft PR #16](https://github.com/raiseCatError/freview/pull/16) introduces optional specification inventory, verification-receipt consistency checks, evidence-aware reports and deliberately deceptive metadata fixtures. It remains pre-release; CI and author review are not independent runtime-agent acceptance.
 
 **Dogfooding:** [final pre-release freview-on-freview review](docs/audits/2026-10-17-final-pre-release-self-review.md) · [historical original audit](docs/freview-reviews-freview.md). The newer source review is a bounded, hosted-evidence **partial-audit**, not native invocation in the author's agent session.
 
