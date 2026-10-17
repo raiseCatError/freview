@@ -306,7 +306,7 @@ class OptionalOperationsTests(unittest.TestCase):
         git(self.repo, "commit", "-qm", "enable optional push gate")
         latest = git(self.repo, "rev-parse", "HEAD")
         update = ("refs/heads/feature/test-hooks " + latest +
-                  " refs/heads/feature/test-hooks " + "0" * 40 + "\\n")
+                  " refs/heads/feature/test-hooks " + "0" * 40 + "\n")
         command = [sys.executable, str(SCRIPT), "hook", "pre-push", "--repo", str(self.repo)]
         env = os.environ.copy()
         env.pop("FREVIEW_OPS_SCRATCH", None)
