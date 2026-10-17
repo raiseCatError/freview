@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import selectors
 import shlex
 import shutil
 import stat
@@ -238,44 +239,71 @@ def _execute(stage: str, policy: dict, workspace: Path, storage: Path, sha: str,
     if not argv:
         raise OpsError("No explicit argv configured for enabled stage")
     if len(prompt) > MAX_PROMPT:
-        raise OpsError("Review prompt over budget")
-    if stage == "adversarial":
-        # Never send worker's report or summary to the independent reviewer first.
-        if "WORKER_SUMMARY" in prompt:
-            raise OpsError("Reviewer cannot receive worker summary on first pass")
-    limit = policy["limits"]["max_output_bytes"]
+        raise OpsError("Prompt exceeds budget")
+    if stage == "adversarial" and "WORKER_SUMMARY" in prompt:
+        raise OpsError("Reviewer cannot receive worker summary on first pass")
+    cap = policy["limits"]["max_output_bytes"]
     logfile = storage / (stage + "-" + str(time.time_ns()) + ".log")
-    start = time.monotonic()
+    begin = time.monotonic()
+    deadline = begin + policy["limits"]["timeout_seconds"]
     env = {"PATH": os.environ.get("PATH", ""), "LANG": "C.UTF-8",
            "FREVIEW_OPS_STAGE": stage, "FREVIEW_SOURCE_SHA": sha}
-    # No implicit HOME, GitHub tokens or inherited API keys. This is not an OS
-    # sandbox: an executable can still reach the host/network in many setups.
+    process = None
+    captured = 0
+    truncated = False
+    timed_out = False
     try:
+        # Selector-driven capped streaming: communicate() would hold unbounded
+        # output in memory before slicing, allowing denial-of-service.
         with logfile.open("xb") as output:
-            output.write(b"")   # artifact created by this tool in approved scratch
-        process = subprocess.Popen(argv, cwd=workspace, env=env,
-                                   stdin=subprocess.PIPE,
-                                   stdout=subprocess.PIPE,
-                                   stderr=subprocess.STDOUT)
-        try:
-            stdout, _ = process.communicate(
-                input=(prompt.encode("utf-8") if prompt else b""),
-                timeout=policy["limits"]["timeout_seconds"])
-            timed_out = False
-        except subprocess.TimeoutExpired:
-            process.kill()
-            stdout, _ = process.communicate()
-            timed_out = True
-        output_bytes = stdout[:limit]
-        with logfile.open("wb") as output:
-            output.write(output_bytes)
-        status_text = "timeout" if timed_out else "passed" if process.returncode == 0 else "failed"
-        return {"stage": stage, "status": status_text, "sha": sha,
-                "exit_code": process.returncode, "elapsed_seconds": round(time.monotonic() - start, 3),
-                "log_path": str(logfile), "output_truncated": len(stdout) > limit,
+            process = subprocess.Popen(argv, cwd=workspace, env=env,
+                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                       stderr=subprocess.STDOUT)
+            process.stdin.write(prompt.encode("utf-8"))
+            process.stdin.close()
+            with selectors.DefaultSelector() as selector:
+                selector.register(process.stdout, selectors.EVENT_READ)
+                while selector.get_map():
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        timed_out = True
+                        break
+                    ready = selector.select(timeout=remaining)
+                    if not ready:
+                        timed_out = True
+                        break
+                    for key, _ in ready:
+                        chunk = os.read(key.fd, min(8192, cap - captured + 1))
+                        if not chunk:
+                            selector.unregister(key.fileobj)
+                            continue
+                        kept = chunk[:max(0, cap - captured)]
+                        output.write(kept)
+                        captured += len(kept)
+                        if len(chunk) > len(kept):
+                            truncated = True
+                            break
+                    if truncated:
+                        break
+            if timed_out or truncated:
+                process.kill()
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=2)
+        state = ("timeout" if timed_out else "output-limit" if truncated else
+                 "passed" if process.returncode == 0 else "failed")
+        return {"stage": stage, "status": state, "sha": sha,
+                "exit_code": process.returncode,
+                "elapsed_seconds": round(time.monotonic() - begin, 3),
+                "log_path": str(logfile), "output_truncated": truncated,
                 "command_argv": argv, "proves_test_quality": False,
                 "reviewer_independence_verified": False, "network_isolation": False}
-    except OSError:
+    except (OSError, BrokenPipeError, ValueError):
+        if process is not None and process.poll() is None:
+            process.kill()
+            process.wait()
         raise OpsError("Configured executable unavailable or output unwritable") from None
 
 
@@ -415,6 +443,8 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
         raise OpsError("Requirements over budget")
     if policy["modules"]["implementation"] and not policy["modules"]["tests"]:
         raise OpsError("Autonomous implementation must have tests enabled")
+    generated_plan = plan(policy, requirements, sha) if (policy["modules"]["planning"]
+                  and policy["modules"]["specs"]) else None
     workspace = _extract_archive(repo, root, sha)
     storage = workspace.parent
     receipts = []
@@ -451,7 +481,11 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                 if result["status"] != "passed":
                     verdict = name + "-failed"
                     break
+    shipping = (ship_plan(policy, repo, verified=True)
+                if policy["modules"]["shipping"] and
+                   verdict == "checks-executed-without-authenticated-verdict" else None)
     return {"source_sha": sha, "review_cycles": cycle, "verdict": verdict,
+            "plan": generated_plan, "shipping": shipping,
             "executions": receipts, "scratch_workspace": str(workspace),
             "independent_success_authenticated": False,
             "automatic_push_or_release": False}
