@@ -33,34 +33,34 @@ Competitor design references (no external code copied):
 
 ### P0 — specification and tests FIRST
 - [x] Create isolated branch from PR #16 at exact SHA.
-- [ ] Commit this durable plan before code.
-- [ ] Add tests asserting default-off, schema/argv guardrails, branch protection, three-pass cap, scratch isolation, exact SHA, optional command invocation, code/test quality outcomes, no non-opted mutations.
-- [ ] Verify *red* initial CI for tests that refer to unimplemented ops module; record run URL.
+- [x] Commit this durable plan before code.
+- [x] Add tests asserting default-off, schema/argv guardrails, branch protection, three-pass cap, scratch isolation, exact SHA, optional command invocation, code/test quality outcomes, no non-opted mutations.
+- [x] Verify *red* initial CI for tests that refer to unimplemented ops module; record run URL.
 **Gate:** tests express accepted behavior before implementation, no accidental mainline change.
 
 ### P1 — policy, status and plan (non-executing)
-- [ ] Implement readable, bounded config with defaults; dry-run status and structured plan/checkpoints, tested against fixture.
-- [ ] Verify exact-head Ubuntu/macOS CI.
+- [x] Implement readable, bounded config with defaults; dry-run status and structured plan/checkpoints, tested against fixture.
+- [x] Verify exact-head Ubuntu/macOS CI.
 **Gate:** read-only defaults, no secrets or arbitrary project execution; checkpoint commit.
 
 ### P2 — independent verification and optional runners
-- [ ] Explicit opt-in runner for test command, reviewer programs, mutation tool, regression sensitivity. Strict argv, fixed caps, expected SHA, scratch copy, exit+log evidence, actual statuses; logs only in approved scratch.
-- [ ] Use independent reviewer context separated from worker text; reviewer responses do not certify correctness.
-- [ ] Verify exact-head CI and test fake stubs only; do not call paid or unauthenticated agents on CI.
+- [x] Explicit opt-in runner for test command, reviewer programs, mutation tool, regression sensitivity. Strict argv, fixed caps, expected SHA, scratch copy, exit+log evidence, actual statuses; logs only in approved scratch.
+- [x] Use independent reviewer context separated from worker text; reviewer responses do not certify correctness.
+- [x] Verify exact-head CI and test fake stubs only; do not call paid or unauthenticated agents on CI.
 **Gate:** no protected ref mutations; output receipts distinguish missing/failed/reproduced claim vs reality.
 
 ### P3 — optional hooks and shipping handoff
-- [ ] Install hooks only on explicit request; never clobber existing hook; verify branch and configured checks; safe uninstall preserving others.
-- [ ] Spec/plan → implementation/review/verify pipeline with meaningful controls. Policy-managed shell-free subcommands, stage attestations and human handoff.
-- [ ] Shipping by default emits release checklist; no automatic push/merge/release.
+- [x] Install hooks only on explicit request; never clobber existing hook; verify branch and configured checks; safe uninstall preserving others.
+- [x] Spec/plan → implementation/review/verify pipeline with meaningful controls. Policy-managed shell-free subcommands, stage attestations and human handoff.
+- [x] Shipping by default emits release checklist; no automatic push/merge/release.
 - [ ] Verify exact-head CI.
 
 ### P4 — three bounded self-review iterations
-- [ ] R1: review implementation vs original specification without relying on worker summary; fix+test.
-- [ ] R2: adversarial audit security/edge cases/compatibility; fix+test.
-- [ ] R3: release/readiness audit and tests; fix+test.
-- [ ] Record exact-SHA evidence and limitations for each; maintain no release hold.
-- [ ] Draft stacked PR targeting `feature/evidence-reconciliation-20261017`, no merge or publish.
+- [x] R1: review implementation vs original specification without relying on worker summary; fix+test.
+- [x] R2: adversarial audit security/edge cases/compatibility; fix+test.
+- [x] R3: release/readiness audit and tests; fix+test.
+- [x] Record exact-SHA evidence and limitations for each; maintain no release hold.
+- [x] Draft stacked PR targeting `feature/evidence-reconciliation-20261017`, no merge or publish.
 
 ## Recovery instructions
 
@@ -70,8 +70,15 @@ Fetch and inspect both PR #16 and this branch, the latest CI status for **exact 
 
 | Stage | Git SHA | Proof | Status |
 | --- | --- | --- | --- |
-| P0 | pending | red tests and documented specification | in progress |
-| P1 | pending | tests, Ubuntu/macOS CI | not started |
-| P2 | pending | tests, Ubuntu/macOS CI | not started |
-| P3 | pending | tests, Ubuntu/macOS CI | not started |
-| R1-R3 | pending | exact SHA, scope, fixes/limits | not started |
+| P0 | 82b0813c | [Red tests before implementation](https://github.com/raiseCatError/freview/actions/runs/38988775372); roadmap 714e27db | Complete |
+| P1 | 39176529 | [Ubuntu/macOS success](https://github.com/raiseCatError/freview/actions/runs/38989123499) | Complete |
+| P2 | c2402a86 | [Ubuntu/macOS success](https://github.com/raiseCatError/freview/actions/runs/38989757284) | Complete |
+| P3 | 78a16122 | [Ubuntu/macOS success](https://github.com/raiseCatError/freview/actions/runs/38990021297); final docs head gate pending | Code complete |
+| R1-R3 | 3717bf28 / c2402a86 / 78a16122 | [Three-pass bounded review](../audits/2026-10-17-optional-ops-three-pass-self-review.md) + exact-code CI | Complete (bounded; not independent agents) |
+
+## Final P0–P4 handoff (2026-10-17)
+
+- Development followed test-first: P0 tests at `82b0813c` failed intentionally before `ops.py` existed; first implementation gates then passed. Later rounds added failing fixtures before correcting real problems. The final code/test SHA `78a1612226f9442390c285b0c116d975903af7c7` passed Ubuntu/macOS: https://github.com/raiseCatError/freview/actions/runs/38990021297.
+- The bounded three-pass review and accepted fixes are documented in `docs/audits/2026-10-17-optional-ops-three-pass-self-review.md`. This was **one hosted GPT review in three rounds**, not three independent subagents or native Claude/Codex/OpenCode activation.
+- Synthetic tests cover opt-in config, bounded archive, group termination, Git hooks, fast-forward gate, external scratch pre-push tests, baseline sensitivity and optional agent command processes. No production tests, actual mutation score, authenticated independent multi-agent review, automatic PR publishing or deployments were performed.
+- Keep PR #17 draft, stacked on PR #16, and both unmerged. Do **not** publish a release. The final documentation-head CI still requires independent exact-SHA verification after this last commit.
