@@ -1,6 +1,6 @@
 # freview Mutation & Bounded Autonomy v1 — tests-first specification
 
-**Date:** 2026-10-17. **Status:** implementation in progress. 
+**Date:** 2026-10-17. **Status:** source and tests complete, final documentation-head CI pending. 
 **Branch:** `feature/mutation-autonomy-v1-20261017`, stacked onto draft PR #19 at `e2b269ea6f56b0caed1ac898584476bef5ec4f6f`. Neither this branch nor ancestors may merge/release without separate approval.
 
 ## Product intent and borrowed practices
@@ -23,7 +23,7 @@ All modules remain OFF absent an explicit `.freview-ops.json`. Existing `limits`
 New optional `autonomy`:
 - `max_stage_runs`: 12 (hard cap 32; applies across all nested worker/test/reviewer/mutation/regression calls).
 - `stop_on_no_progress`: true. If reviewer requests change, next worker produces no candidate source change, stop with `no-progress` rather than burning next review tokens.
-- `max_repeated_findings`: 1 (1–3) applies only to exact repeated finding fingerprints without candidate source delta; prevents review oscillation.
+- `max_repeated_findings`: 1 (1–3) stops identical repeated finding fingerprints, even if the worker makes unrelated changes; prevents review oscillation.
 - `require_mutation_for_shipping`: false by default. If opted in, no shipping handoff without a successful mutation gate on same candidate. Shipping remains handoff-only, never merge/deploy.
 - Existing max 3 review rounds, explicit scratch, exact SHA, credential flags and no automatic original-repo edits remain.
 - No automatic local worktree resets, installs, pip/npm, branch pushes or external PR/releases. No OS sandbox promises.
@@ -32,24 +32,24 @@ New optional `autonomy`:
 
 ### M0 — red tests first
 - [x] Create branch from exact PR #19 head, write durable spec/recovery before implementation.
-- [ ] Add direct parser tests for Stryker/mutmut normal, no survivors, incomplete, tampered totals, malformed oversized, no valid mutants, bounded survivors, threshold decisions.
-- [ ] Add integration tests for configured mutation report required, gate/advisory behavior, worker no-progress/budget exhaustion, and unchanged read-only defaults.
-- [ ] Capture expected failing Ubuntu/macOS CI. Tests must actually run (no unittest method shadowing).
+- [x] Add direct parser tests for Stryker/mutmut normal, no survivors, incomplete, tampered totals, malformed oversized, no valid mutants, bounded survivors, threshold decisions.
+- [x] Add integration tests for configured mutation report required, gate/advisory behavior, worker no-progress/budget exhaustion, and unchanged read-only defaults.
+- [x] Capture expected failing Ubuntu/macOS CI. Tests must actually run (no unittest method shadowing).
 
 ### M1 — mutation engine reports
-- [ ] Implement pure `mutation_report.py` parser and CLI (stdlib only). Never follow report symlinks or leak full source text.
-- [ ] Connect mutation runner's result with exact observed verifier workspace and checkpoint report. Verify exact-head both OS.
+- [x] Implement pure `mutation_report.py` parser and CLI (stdlib only). Never follow report symlinks or leak full source text.
+- [x] Connect mutation runner's result with exact observed verifier workspace and checkpoint report. Verify exact-head both OS.
 
 ### M2 — bounded autonomy
-- [ ] Add centrally validated policy defaults and safe optional knobs; stage run budget and no-progress avoidance.
-- [ ] Honor opt-in mutation quality gate before proposing shipping; include detailed verdict and provenance.
-- [ ] Verify full suite both OS, including all previous 193 tests.
+- [x] Add centrally validated policy defaults and safe optional knobs; stage run budget and no-progress avoidance.
+- [x] Honor opt-in mutation quality gate before proposing shipping; include detailed verdict and provenance.
+- [x] Verify full suite both OS, including all previous 193 tests.
 
 ### M3 — 3-pass self-review & handoff
-- [ ] Review independent code and plan for ambiguous mutation statuses / wrong math.
-- [ ] Review code for path traversal, budgets, stage reuse, false shipping claims.
-- [ ] Review UX/docs/help/compatibility; fix, add tests, rerun.
-- [ ] Commit a bounded self-audit, final exact-head CI and draft stacked PR. **No merge/push to main/release**.
+- [x] Review independent code and plan for ambiguous mutation statuses / wrong math.
+- [x] Review code for path traversal, budgets, stage reuse, false shipping claims.
+- [x] Review UX/docs/help/compatibility; fix, add tests, rerun.
+- [x] Commit a bounded self-audit, final exact-head CI and draft stacked PR. **No merge/push to main/release**.
 
 ## Recovery / interruption
 
@@ -61,7 +61,15 @@ New optional `autonomy`:
 
 | Phase | Commit | CI proof | Status |
 | --- | --- | --- | --- |
-| M0 | pending | red tests | in progress |
-| M1 | pending | two-OS exact SHA | not started |
-| M2 | pending | two-OS exact SHA | not started |
-| M3 | pending | review and final SHA | not started |
+| M0 | 1567ef8e | [Intentional red tests before implementation](https://github.com/raiseCatError/freview/actions/runs/39017038480) | Complete |
+| M1 | c06822c5 | [Report parser + stale-report regression Ubuntu/macOS](https://github.com/raiseCatError/freview/actions/runs/39017378141) | Complete |
+| M2 | 4caf17d9 / 42dab6e3 | [Standalone consistency](https://github.com/raiseCatError/freview/actions/runs/39017607854), [checkpoint evidence both OS](https://github.com/raiseCatError/freview/actions/runs/39017817033) | Complete |
+| M3 | latest branch | [Three bounded passes](../audits/2026-10-17-mutation-autonomy-bounded-review.md); final docs-head CI must be verified | Final gate pending |
+
+## Completion and recovery checkpoint (2026-10-17)
+
+- Test-first M0 red run: https://github.com/raiseCatError/freview/actions/runs/39017038480. The new parser did not exist when tests were committed. Subsequent backward-compatibility failures were investigated and old exit-code-only tests were updated to assert the stronger mutation contract.
+- Green code/fixture receipts: M1 https://github.com/raiseCatError/freview/actions/runs/39017378141; M2 https://github.com/raiseCatError/freview/actions/runs/39017607854 and https://github.com/raiseCatError/freview/actions/runs/39017817033. The fake mutmut driver test passed at https://github.com/raiseCatError/freview/actions/runs/39017691880.
+- M3 bounded self-review: [three-pass source and evidence review](../audits/2026-10-17-mutation-autonomy-bounded-review.md). Source uses official Stryker report format and verified mutmut exporter details, but never ran a real external mutation engine. `mutmut` CI exporter omits classifications included in its `total`; unclassified counts yield incomplete rather than a guessed score. Unrounded threshold comparisons block false green from rounding.
+- All user-controlled programs remain explicit opt-in. Mutation and autonomy are off without policy; shipping is a **handoff only**. Real agent/mutation physical-host and external SSD sandbox acceptance remain unperformed.
+- **Final gate:** verify exact current branch SHA and Ubuntu/macOS CI after every documentation commit, update PR #20 acceptance checks; leave PRs #16–#20 in draft and `main` unchanged. No merge, publish, release, install or background task.
