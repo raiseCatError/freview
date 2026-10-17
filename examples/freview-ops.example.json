@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "modules": {
+    "specs": true,
+    "planning": true,
+    "implementation": false,
+    "tests": false,
+    "adversarial": false,
+    "mutation": false,
+    "regression": false,
+    "hooks": false,
+    "shipping": false
+  },
+  "commands": {
+    "tests": [
+      "python3",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests"
+    ]
+  },
+  "limits": {
+    "timeout_seconds": 120,
+    "max_rounds": 2,
+    "max_output_bytes": 16384
+  },
+  "pass_env": []
+}

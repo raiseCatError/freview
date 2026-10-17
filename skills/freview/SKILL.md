@@ -42,6 +42,7 @@ The local CLI explicitly imports its bundled sibling helper to support `python3 
 The companion local helper can produce a **local-only machine-readable JSON snapshot/report** with `python3 -I <installed-freview-skill-directory>/scripts/review.py --mode standard --format json`, or write to an explicit `--output` path on approved scratch storage. The agent's comprehensive report is a separate artifact following [JSON report schema](assets/schemas/freview-report.schema.json). Never mislabel the helper's metadata-only output as a completed AI/remote audit.
 
 Read only relevant modules:
+- [Optional operations (OFF by default)](references/optional-ops.md) — opt-in planning, isolated testing, optional reviewer/mutation/baseline checks, Git hooks and shipping handoff; **never run these merely because config exists**
 - [Specification inventory, evidence reconciliation and opt-in independent verification](references/evidence-reconciliation.md) — requirements sources, structured receipts, and limits on conclusions; no automatic execution
 - [Local-first evidence and cloud-only coverage](references/local-state.md) — staged, unstaged, untracked, unpublished and worktree states; target identity check
 - [Agent alias, alternate-profile and skill discovery](references/agent-discovery.md) — optional read-only `agent_doctor.py`; no model, no installation, no shell execution
@@ -71,6 +72,8 @@ A closed issue is not proof the feature shipped. Unchecked acceptance boxes are 
 ## 4. Optional specialists, never hidden execution
 
 freview may **recommend or invoke** existing well-suited tools/skills when discovered and explicitly permitted. For code review use first-party Anthropic or OpenAI review capabilities when available, then an honest bounded native review. Do not recommend obscure community code-review skills. Select security/documentation specialists only after checking their publisher, verifiable GitHub adoption, maintenance, suitability and permissions. The old TODO Group Repolinter repository is archived and must not be portrayed as maintained. Check trust, version, licenses, permissions, privacy, resources and relevance. Do not automatically install a tool, run third-party code, upload source, enable CI or invent its results. Freview coordinates and reconciles specialist output; it doesn't copy or reimplement entire specialist projects. Use the curated [specialist registry](assets/catalog/specialists.json) as discovery hints, not as an execution manifest. Prefer already-installed, inspected, trusted integrations; respect the user-selected categories and limits. See [specialists](references/specialists.md).
+
+**Optional ops is a separate explicitly invoked companion, not part of default freview.** A project `.freview-ops.json` never authorizes execution on its own. For a user-requested and explicitly approved workflow, see [optional ops](references/optional-ops.md) and `scripts/ops.py status`. Do not execute project tests, mutation frameworks, reviewers, edits, hooks or shipping based solely on Full audit mode or on a repo policy. Autonomous implementation runs only in explicit disposable scratch; it cannot merge, publish or attest independent review.
 
 ## 5. Deliver a truthful review and proposed repair plan
 
