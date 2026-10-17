@@ -45,7 +45,7 @@ class OpsError(Exception):
 
 
 def validate_policy(obj: object) -> dict:
-    if not isinstance(obj, dict) or set(obj) - {"schema_version", "modules", "commands", "limits", "pass_env"}:
+    if not isinstance(obj, dict) or set(obj) - {"schema_version", "modules", "commands", "limits", "pass_env", "mutation_quality", "autonomy"}:
         raise OpsError("Invalid or unknown policy fields")
     if type(obj.get("schema_version")) is not int or obj["schema_version"] != 1:
         raise OpsError("Unsupported policy version")
@@ -93,8 +93,37 @@ def validate_policy(obj: object) -> dict:
         value = limits[key]
         if type(value) is not int or not minimum <= value <= maximum:
             raise OpsError("Invalid limit: " + key)
+    mutation = {"format": "auto", "mode": "advisory", "min_score": 60,
+                "min_valid_mutants": 1, "max_survivors": 12}
+    raw_mutation = obj.get("mutation_quality", {})
+    if not isinstance(raw_mutation, dict) or set(raw_mutation) - set(mutation):
+        raise OpsError("Unknown mutation-quality options")
+    mutation.update(raw_mutation)
+    if (mutation["format"] not in ("auto", "stryker", "mutmut") or
+            mutation["mode"] not in ("advisory", "gate") or
+            type(mutation["min_score"]) not in (int, float) or
+            not 0 <= mutation["min_score"] <= 100 or
+            type(mutation["min_valid_mutants"]) is not int or
+            not 1 <= mutation["min_valid_mutants"] <= 10000 or
+            type(mutation["max_survivors"]) is not int or
+            not 0 <= mutation["max_survivors"] <= 50):
+        raise OpsError("Invalid mutation-quality settings")
+    autonomy = {"max_stage_runs": 12, "stop_on_no_progress": True,
+                "max_repeated_findings": 1, "require_mutation_for_shipping": False}
+    raw_autonomy = obj.get("autonomy", {})
+    if not isinstance(raw_autonomy, dict) or set(raw_autonomy) - set(autonomy):
+        raise OpsError("Unknown autonomy options")
+    autonomy.update(raw_autonomy)
+    if (type(autonomy["max_stage_runs"]) is not int or
+            not 1 <= autonomy["max_stage_runs"] <= 32 or
+            type(autonomy["max_repeated_findings"]) is not int or
+            not 1 <= autonomy["max_repeated_findings"] <= 3 or
+            type(autonomy["stop_on_no_progress"]) is not bool or
+            type(autonomy["require_mutation_for_shipping"]) is not bool):
+        raise OpsError("Invalid autonomy settings")
     return {"schema_version": 1, "modules": modules,
-            "commands": clean_commands, "limits": limits, "pass_env": forward}
+            "commands": clean_commands, "limits": limits, "pass_env": forward,
+            "mutation_quality": mutation, "autonomy": autonomy}
 
 
 def load_policy(path: Path) -> dict:
@@ -120,7 +149,9 @@ def status(policy: dict) -> dict:
             "disabled": [key for key in MODULES if not policy["modules"][key]],
             "limits": policy["limits"], "read_only_default": True,
             "execution_requires_explicit_flag": True, "release_automation": False,
-            "credentials_require_separate_flag": bool(policy.get("pass_env"))}
+            "credentials_require_separate_flag": bool(policy.get("pass_env")),
+            "mutation_quality": policy["mutation_quality"],
+            "autonomy": policy["autonomy"]}
 
 
 def plan(policy: dict, requirements: str, sha: str) -> dict:
