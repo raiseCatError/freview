@@ -4,7 +4,7 @@
 
 ## Modules and defaults
 
-All nine modules are **disabled** unless a project explicitly enables them: `specs`, `planning`, `implementation`, `tests`, `adversarial`, `mutation`, `regression`, `hooks`, and `shipping`. This policy is read separately from `.freview.json` to avoid changing the established read-only audit contract.
+All nine modules are **disabled** unless a project explicitly enables them: `specs`, `planning`, `implementation`, `tests`, `adversarial`, `mutation`, `regression`, `hooks`, and `shipping`. This policy is read separately from `.freview.json` to avoid changing the established read-only audit contract. The canonical [operations schema](../assets/schemas/freview-ops.schema.json) defines accepted settings and their defaults. Its structure is separately tested against the runtime validator; **schema validity is not execution authorization**.
 
 | Module | When explicitly enabled | Boundaries |
 | --- | --- | --- |

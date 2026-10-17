@@ -12,9 +12,7 @@ It produces a review, not a cleanup script. Default operations are **read-only**
 
 > **Status:** Pre-release read-only preview for trusted repositories; **no version has been tagged or published**. Installation and native discovery depend on agent/runtime configuration. A Full review is not a security certification or physical-device verification.
 
-**Pre-evidence-reconciliation baseline:** [PR #14](https://github.com/raiseCatError/freview/pull/14) merged at [`b4e9de58`](https://github.com/raiseCatError/freview/commit/b4e9de581107b8b78b4a710a5be93fa4e90510e8), with [99 Python tests passing on both Ubuntu and macOS](https://github.com/raiseCatError/freview/actions/runs/38983887532). User-provided field evidence reports native invocation in Antigravity CLI, Claude Code, Codex and OpenCode; this is **not** four independently re-executed Full audits, and OpenCode's full five-gate acceptance matrix remains unobserved.
-
-**In-progress enhancement:** [draft PR #16](https://github.com/raiseCatError/freview/pull/16) introduces optional specification inventory, verification-receipt consistency checks, evidence-aware reports and deliberately deceptive metadata fixtures. It remains pre-release; CI and author review are not independent runtime-agent acceptance.
+**Integrated on `main`:** [evidence reconciliation #16](https://github.com/raiseCatError/freview/pull/16), [optional operations #17](https://github.com/raiseCatError/freview/pull/17), [structured adversarial verdicts #18](https://github.com/raiseCatError/freview/pull/18), [verification isolation #19](https://github.com/raiseCatError/freview/pull/19), and [mutation quality / bounded autonomy #20](https://github.com/raiseCatError/freview/pull/20). All five have been merged with their development history retained; [the integrated CI run](https://github.com/raiseCatError/freview/actions/runs/39019289770) passed on Ubuntu and macOS. **This is still pre-release:** real provider, mutation workload and physical-host acceptance are separate from synthetic CI.
 
 **Dogfooding:** [final pre-release freview-on-freview review](docs/audits/2026-10-17-final-pre-release-self-review.md) · [historical original audit](docs/freview-reviews-freview.md). The newer source review is a bounded, hosted-evidence **partial-audit**, not native invocation in the author's agent session.
 
@@ -83,7 +81,7 @@ The second command inspects a supplied JSON receipt and never runs its test comm
 
 ## Optional operations: everything off by default
 
-The preview [freview ops companion](skills/freview/references/optional-ops.md) adds **separately enabled** specification/plan generation, worker CLI invocation, isolated test execution, fresh-process **structured JSON** adversarial reviewer verdicts (up to 3 bounded repair cycles), mutation-tool delegation, exact-commit baseline regression sensitivity, local Git hook guards and human shipping handoff. These are **not part of the default read-only audit**. No untrusted repository configuration can silently authorize execution, install tools or publish releases.
+The [freview ops companion](skills/freview/references/optional-ops.md) adds **separately enabled** specification/plan generation, worker CLI invocation, isolated test execution, fresh-process **structured JSON** adversarial reviewer verdicts (up to 3 bounded repair cycles), mutation-tool delegation, exact-commit baseline regression sensitivity, local Git hook guards and human shipping handoff. These are **not part of the default read-only audit**. No untrusted repository configuration can silently authorize execution, install tools or publish releases.
 
 ```sh
 # No config = all modules disabled, no execution or tokens
@@ -101,7 +99,7 @@ A completed reviewer process cannot approve itself with plain text: freview vali
 
 The ops companion now understands Stryker JSON and mutmut CI stats **as actual mutation evidence**, rather than trusting a mutator's exit code alone. It reports detected, surviving/no-coverage, pending and unknown mutants, plus a bounded sample of survivor locations. Missing, stale, interrupted or malformed reports are inconclusive; a separately enabled score gate can block a handoff. The portable mutmut runner invokes an **already-installed** mutmut CLI and exports its stats without a shell.
 
-Worker/reviewer loops additionally enforce a **global subprocess budget** and stop when a worker makes no source progress or repeated findings remain unchanged. All behavior is explicitly configurable; all modules remain OFF by default. Scratch checkpoints retain evidence without automatically resuming or signing an audit. See the [mutation and autonomy guide](skills/freview/references/mutation-autonomy.md) and [configuration example](examples/freview-ops.example.json).
+Worker/reviewer loops additionally enforce a **global subprocess budget** and stop when a worker makes no source progress or repeated findings remain unchanged. All behavior is explicitly configurable; all modules remain OFF by default. Scratch checkpoints retain evidence without automatically resuming or signing an audit. The canonical [operations-policy schema](schemas/freview-ops.schema.json) is bundled with the installed skill; the separate [audit configuration schema](schemas/freview-config.schema.json) remains non-executable. See the [mutation and autonomy guide](skills/freview/references/mutation-autonomy.md) and [configuration example](examples/freview-ops.example.json).
 
 ## Review modes
 
@@ -178,6 +176,8 @@ The helper reports current Git metadata, worktrees, branch/upstream divergence, 
 ## Project configuration
 
 Optionally put a validated `.freview.json` at your repository root. Declare your development/release branches, default audit mode, excluded categories, optional human QA gates, bounded audit limits and specialist preferences. The config is **data only**, never executable hooks. See [configuration](skills/freview/references/configuration.md), [JSON Schema](schemas/freview-config.schema.json) and [NMSh example](examples/nmsh.freview.json). Explicit user instructions override project preferences.
+
+For the separately invoked **operations companion**, use `.freview-ops.json` and its [strict v1 operations schema](schemas/freview-ops.schema.json). It is distinct from `.freview.json`: it contains optional executable argv and therefore requires an explicitly trusted project, a clean exact-commit checkout, a caller-selected scratch directory, and a separate `--allow-execute` permission before anything runs. Neither config silently opts you into costly agents, mutation tools or shipping.
 
 ## Report semantics and installation checks
 

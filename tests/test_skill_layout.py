@@ -30,6 +30,7 @@ class SkillLayoutTests(unittest.TestCase):
             self.assertTrue((SKILL_DIR / "scripts" / tool).is_file())
         for asset in ("assets/schemas/freview-config.schema.json",
                       "assets/schemas/freview-report.schema.json",
+                      "assets/schemas/freview-ops.schema.json",
                       "assets/catalog/specialists.json",
                       "assets/templates/github-actions/freview-daily.yml"):
             self.assertTrue((SKILL_DIR / asset).is_file())
@@ -38,6 +39,7 @@ class SkillLayoutTests(unittest.TestCase):
         for package_path, source_path in (
             ("assets/schemas/freview-config.schema.json", "schemas/freview-config.schema.json"),
             ("assets/schemas/freview-report.schema.json", "schemas/freview-report.schema.json"),
+            ("assets/schemas/freview-ops.schema.json", "schemas/freview-ops.schema.json"),
             ("assets/catalog/specialists.json", "catalog/specialists.json"),
             ("assets/templates/github-actions/freview-daily.yml",
              "templates/github-actions/freview-daily.yml"),

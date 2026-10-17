@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/raiseCatError/freview/blob/main/schemas/freview-ops.schema.json",
+  "title": "freview optional operations policy v1",
+  "description": "Explicitly opted-in trusted-project operations. This schema describes configuration, not permission to execute; the runtime validator also enforces stage and subprocess safety rules.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "modules": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "specs": {
+          "type": "boolean",
+          "default": false
+        },
+        "planning": {
+          "type": "boolean",
+          "default": false
+        },
+        "implementation": {
+          "type": "boolean",
+          "default": false
+        },
+        "tests": {
+          "type": "boolean",
+          "default": false
+        },
+        "adversarial": {
+          "type": "boolean",
+          "default": false
+        },
+        "mutation": {
+          "type": "boolean",
+          "default": false
+        },
+        "regression": {
+          "type": "boolean",
+          "default": false
+        },
+        "hooks": {
+          "type": "boolean",
+          "default": false
+        },
+        "shipping": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "description": "Opt-in modules. All disabled unless explicitly enabled. A repository config alone does not grant permission to execute."
+    },
+    "commands": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "planning": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "pattern": "^[^\\u0000\\u000A]+$"
+          },
+          "description": "Explicit argv, never a shell snippet; additional command safety checks occur at runtime."
+        },
+        "implementation": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "pattern": "^[^\\u0000\\u000A]+$"
+          },
+          "description": "Explicit argv, never a shell snippet; additional command safety checks occur at runtime."
+        },
+        "tests": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "pattern": "^[^\\u0000\\u000A]+$"
+          },
+          "description": "Explicit argv, never a shell snippet; additional command safety checks occur at runtime."
+        },
+        "adversarial": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "pattern": "^[^\\u0000\\u000A]+$"
+          },
+          "description": "Explicit argv, never a shell snippet; additional command safety checks occur at runtime."
+        },
+        "mutation": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "pattern": "^[^\\u0000\\u000A]+$"
+          },
+          "description": "Explicit argv, never a shell snippet; additional command safety checks occur at runtime."
+        },
+        "regression": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "pattern": "^[^\\u0000\\u000A]+$"
+          },
+          "description": "Explicit argv, never a shell snippet; additional command safety checks occur at runtime."
+        }
+      },
+      "description": "Trusted executable argv; providing a command does not enable its module."
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 600,
+          "default": 120
+        },
+        "max_rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "default": 3
+        },
+        "max_output_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65536,
+          "default": 16384
+        }
+      }
+    },
+    "pass_env": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 8,
+      "default": [],
+      "items": {
+        "enum": [
+          "HOME",
+          "XDG_CONFIG_HOME",
+          "CODEX_HOME",
+          "CLAUDE_CONFIG_DIR",
+          "ANTHROPIC_API_KEY",
+          "OPENAI_API_KEY",
+          "GOOGLE_API_KEY",
+          "GEMINI_API_KEY"
+        ]
+      },
+      "description": "Explicit environment forwarding still needs a separate runtime approval."
+    },
+    "mutation_quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "stryker",
+            "mutmut"
+          ],
+          "default": "auto"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "advisory",
+            "gate"
+          ],
+          "default": "advisory"
+        },
+        "min_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 60
+        },
+        "min_valid_mutants": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 1
+        },
+        "max_survivors": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 50,
+          "default": 12
+        }
+      }
+    },
+    "autonomy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_stage_runs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32,
+          "default": 12
+        },
+        "stop_on_no_progress": {
+          "type": "boolean",
+          "default": true
+        },
+        "max_repeated_findings": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "default": 1
+        },
+        "require_mutation_for_shipping": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    }
+  }
+}
