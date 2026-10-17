@@ -26,12 +26,13 @@ def validate(receipt: object, *, expected_sha: str | None = None) -> dict:
     errors = []
     warnings = []
     if not isinstance(receipt, dict):
-        return {"status": "invalid", "errors": ["receipt-not-an-object"], "warnings": []}
+        return {"status": "invalid", "errors": ["receipt-not-an-object"],
+                "warnings": [], "checks": [], "provenance_verified": False}
     if expected_sha is not None and not SHA.fullmatch(expected_sha):
         raise ValueError("expected SHA must be a lowercase full 40-character Git SHA")
     if set(receipt) - {"schema_version", "repository", "head_sha", "checks"}:
         errors.append("unknown-receipt-fields")
-    if receipt.get("schema_version") != 1:
+    if type(receipt.get("schema_version")) is not int or receipt["schema_version"] != 1:
         errors.append("unsupported-schema-version")
     repo = receipt.get("repository")
     if not isinstance(repo, str) or not REPO_NAME.fullmatch(repo) or ".." in repo:
@@ -54,6 +55,10 @@ def validate(receipt: object, *, expected_sha: str | None = None) -> dict:
             continue
         if set(item) - {"id", "actor", "sha", "command", "exit_code", "evidence", "suite", "note"}:
             errors.append(prefix + "unknown-fields")
+        for optional_field in ("suite", "note"):
+            if optional_field in item and (not isinstance(item[optional_field], str)
+                                           or len(item[optional_field]) > 2048):
+                errors.append(prefix + "invalid-" + optional_field)
         identifier = item.get("id")
         if not isinstance(identifier, str) or not SAFE_ID.fullmatch(identifier):
             errors.append(prefix + "invalid-id")
