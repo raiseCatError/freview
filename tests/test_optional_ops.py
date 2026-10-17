@@ -98,6 +98,41 @@ class OptionalOperationsTests(unittest.TestCase):
             ops.run_stage("tests", policy, self.repo, self.scratch,
                           allow_execute=True, expected_sha=self.head)
 
+    def test_output_budget_stops_noisy_command(self):
+        policy = self.policy(tests=True)
+        policy["commands"]["tests"] = [sys.executable, "-c",
+                                       "import sys;sys.stdout.write('Z'*1000000)"]
+        result = ops.run_stage("tests", policy, self.repo, self.scratch,
+                               allow_execute=True, expected_sha=self.head)
+        self.assertEqual(result["status"], "output-limit")
+        self.assertTrue(result["output_truncated"])
+        self.assertLessEqual(Path(result["log_path"]).stat().st_size, 4096)
+
+    def test_pipeline_uses_bounded_review_rounds(self):
+        policy = self.policy(implementation=True, tests=True, adversarial=True)
+        policy["commands"]["implementation"] = [sys.executable, "-c",
+                                                  "print('WORKER_SUMMARY')"]
+        policy["commands"]["tests"] = [sys.executable, "-c", "pass"]
+        policy["commands"]["adversarial"] = [sys.executable, "-c",
+                                              "raise SystemExit(2)"]
+        result = ops.pipeline(policy, self.repo, self.scratch,
+                              allow_execute=True, expected_sha=self.head,
+                              requirements="Implement the spec", rounds=3)
+        self.assertEqual(result["review_cycles"], 3)
+        self.assertEqual(result["verdict"], "review-process-failed")
+        self.assertEqual(len(result["executions"]), 9)
+        self.assertFalse(result["independent_success_authenticated"])
+
+    def test_plan_and_shipping_in_opted_pipeline_are_human_gated(self):
+        policy = self.policy(specs=True, planning=True, tests=True, shipping=True)
+        policy["commands"]["tests"] = [sys.executable, "-c", "pass"]
+        result = ops.pipeline(policy, self.repo, self.scratch,
+                              allow_execute=True, expected_sha=self.head,
+                              requirements="Meet the expected contract")
+        self.assertEqual(result["plan"]["head_sha"], self.head)
+        self.assertEqual(result["shipping"]["status"], "handoff-only")
+        self.assertFalse(result["shipping"]["merged"])
+
     def test_failing_test_and_evidence_not_green(self):
         policy = self.policy(tests=True)
         policy["commands"]["tests"] = [sys.executable, "-c", "raise SystemExit(7)"]
