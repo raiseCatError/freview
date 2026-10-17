@@ -9,7 +9,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib.util
-import io
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -39,7 +38,6 @@ PROTECTED = ("main", "master", "develop", "release/*")
 FORWARDABLE_ENV = {"HOME", "XDG_CONFIG_HOME", "CODEX_HOME", "CLAUDE_CONFIG_DIR",
                    "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY"}
 SHA = re.compile(r"^[0-9a-f]{40}$")
-ID = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
 
 
 class OpsError(Exception):
