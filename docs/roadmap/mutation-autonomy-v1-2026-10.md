@@ -1,6 +1,6 @@
 # freview Mutation & Bounded Autonomy v1 — tests-first specification
 
-**Date:** 2026-10-17. **Status:** source and tests complete, final documentation-head CI pending. 
+**Date:** 2026-10-17. **Status:** implementation, review and initial final-head CI complete; owner merge/release held. 
 **Branch:** `feature/mutation-autonomy-v1-20261017`, stacked onto draft PR #19 at `e2b269ea6f56b0caed1ac898584476bef5ec4f6f`. Neither this branch nor ancestors may merge/release without separate approval.
 
 ## Product intent and borrowed practices
@@ -64,7 +64,7 @@ New optional `autonomy`:
 | M0 | 1567ef8e | [Intentional red tests before implementation](https://github.com/raiseCatError/freview/actions/runs/39017038480) | Complete |
 | M1 | c06822c5 | [Report parser + stale-report regression Ubuntu/macOS](https://github.com/raiseCatError/freview/actions/runs/39017378141) | Complete |
 | M2 | 4caf17d9 / 42dab6e3 | [Standalone consistency](https://github.com/raiseCatError/freview/actions/runs/39017607854), [checkpoint evidence both OS](https://github.com/raiseCatError/freview/actions/runs/39017817033) | Complete |
-| M3 | latest branch | [Three bounded passes](../audits/2026-10-17-mutation-autonomy-bounded-review.md); final docs-head CI must be verified | Final gate pending |
+| M3 | 9fed609b | [Three bounded passes](../audits/2026-10-17-mutation-autonomy-bounded-review.md) + [217 tests, Ubuntu/macOS exact-head success](https://github.com/raiseCatError/freview/actions/runs/39018155210) | Complete as of 9fed609b; this journal update requires its own CI |
 
 ## Completion and recovery checkpoint (2026-10-17)
 
@@ -73,3 +73,9 @@ New optional `autonomy`:
 - M3 bounded self-review: [three-pass source and evidence review](../audits/2026-10-17-mutation-autonomy-bounded-review.md). Source uses official Stryker report format and verified mutmut exporter details, but never ran a real external mutation engine. `mutmut` CI exporter omits classifications included in its `total`; unclassified counts yield incomplete rather than a guessed score. Unrounded threshold comparisons block false green from rounding.
 - All user-controlled programs remain explicit opt-in. Mutation and autonomy are off without policy; shipping is a **handoff only**. Real agent/mutation physical-host and external SSD sandbox acceptance remain unperformed.
 - **Final gate:** verify exact current branch SHA and Ubuntu/macOS CI after every documentation commit, update PR #20 acceptance checks; leave PRs #16–#20 in draft and `main` unchanged. No merge, publish, release, install or background task.
+
+## Final confirmation and handoff
+
+- Verified `9fed609bb2f844b994d9e9ae38a45d4401bec85b` at https://github.com/raiseCatError/freview/actions/runs/39018155210: **Ubuntu and macOS jobs both successful**; Ubuntu recorded **217 passing tests**. The two-OS CI jobs provide source/test evidence, **not** proof of real mutation engine performance or independent agent review.
+- Stacked PRs #16, #17, #18, #19, #20 verified **draft and unmerged**; `main` unchanged at `2646e4c35e2383b108a752893d846cd48989f2a8` at time of inspection.
+- This final journal amendment itself changes the branch HEAD: check the workflow for the newer exact SHA and update PR #20 once it turns green. No further code edits intended. The **release hold remains active** pending separate human approval and real provider/host mutation tests.
