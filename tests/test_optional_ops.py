@@ -289,6 +289,30 @@ class OptionalOperationsTests(unittest.TestCase):
         self.assertTrue(untouched.exists())
         self.assertFalse((self.repo / ".git" / "hooks" / "pre-commit").exists())
 
+    def test_opted_in_prepush_runs_tests_only_with_explicit_scratch(self):
+        git(self.repo, "checkout", "-qb", "feature/test-hooks")
+        policy = self.policy(hooks=True, tests=True)
+        policy["commands"]["tests"] = [sys.executable, "-c", "print('gate passed')"]
+        (self.repo / ".freview-ops.json").write_text(json.dumps(policy))
+        git(self.repo, "add", ".freview-ops.json")
+        git(self.repo, "commit", "-qm", "enable optional push gate")
+        latest = git(self.repo, "rev-parse", "HEAD")
+        update = ("refs/heads/feature/test-hooks " + latest +
+                  " refs/heads/feature/test-hooks " + "0" * 40 + "\\n")
+        command = [sys.executable, str(SCRIPT), "hook", "pre-push", "--repo", str(self.repo)]
+        env = os.environ.copy()
+        env.pop("FREVIEW_OPS_SCRATCH", None)
+        blocked = subprocess.run(command, input=update, text=True, env=env,
+                                 capture_output=True, timeout=20)
+        self.assertEqual(blocked.returncode, 2)
+        env["FREVIEW_OPS_SCRATCH"] = str(self.scratch)
+        granted = subprocess.run(command, input=update, text=True, env=env,
+                                 capture_output=True, timeout=30)
+        self.assertEqual(granted.returncode, 0, granted.stdout + granted.stderr)
+        result = json.loads(granted.stdout)
+        self.assertTrue(result["allowed"])
+        self.assertEqual(result["test_gate"]["status"], "passed")
+
     def test_existing_branch_push_checks_actual_fast_forward(self):
         policy = self.policy(hooks=True)
         before = self.head
