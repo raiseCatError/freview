@@ -870,9 +870,23 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
         sha, starting_digest, starting_digest, 0, receipts, "in-progress", verdict))
     def record(receipt: dict, cycle_index: int) -> None:
         receipts.append(receipt)
+        # The canonical candidate is the worker's workspace, not a test
+        # runner's ephemeral cache directory or the reviewer's copy.
         _save_checkpoint(storage, _checkpoint_data(
-            sha, starting_digest, receipt["workspace_digest_after"],
+            sha, starting_digest, _workspace_digest(workspace),
             cycle_index, receipts, "in-progress", verdict))
+
+    def verify_stage(stage: str, cycle_index: int, *, prompt: str = "") -> dict:
+        digest = _workspace_digest(workspace)
+        verifier = _verification_copy(workspace, storage, stage, cycle_index)
+        report = _execute(stage, policy, verifier, verifier.parent, sha,
+                          prompt=prompt, allow_credentials=allow_credentials)
+        report["verification_workspace"] = str(verifier)
+        report["candidate_digest"] = digest
+        report["source_entries_modified"] = _original_entries_changed(workspace, verifier)
+        report["candidate_modified_during_verification"] = (
+            _workspace_digest(workspace) != digest)
+        return report
     final_review = None
     review_history = []
     worker_feedback = ""
@@ -894,9 +908,11 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
             if report["status"] != "passed":
                 verdict = "worker-failed"
                 break
-        report = _execute("tests", policy, workspace, storage, sha,
-                          allow_credentials=allow_credentials)
+        report = verify_stage("tests", cycle)
         record(report, cycle)
+        if report["candidate_modified_during_verification"] or report["source_entries_modified"]:
+            verdict = "tests-mutated-source"
+            break
         if report["status"] != "passed":
             verdict = "tests-failed"
             break
@@ -906,10 +922,9 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
             if len(message) > MAX_PROMPT:
                 verdict = "review-prompt-over-budget"
                 break
-            report = _execute("adversarial", policy, workspace, storage, sha,
-                prompt=message, allow_credentials=allow_credentials)
+            report = verify_stage("adversarial", cycle, prompt=message)
             record(report, cycle)
-            if report["workspace_modified"]:
+            if report["workspace_modified"] or report["candidate_modified_during_verification"]:
                 verdict = "review-mutated-source"
                 break
             if report["status"] != "passed":
@@ -917,7 +932,7 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                 break
             final_review = _review_verdict(report, expected_sha=sha,
                                            expected_digest=review_digest,
-                                           workspace=workspace)
+                                           workspace=Path(report["verification_workspace"]))
             review_history.append({
                 "cycle": cycle, "status": final_review["status"],
                 "finding_ids": [f["id"] for f in final_review["findings"]]
@@ -945,9 +960,14 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
     if verdict in ("checks-executed-without-authenticated-verdict", "reviewer-approved-claim"):
         for name in ("regression", "mutation"):
             if policy["modules"][name]:
-                result = _execute(name, policy, workspace, storage, sha,
-                                  allow_credentials=allow_credentials)
+                result = verify_stage(name, cycle)
                 record(result, cycle)
+                if result["candidate_modified_during_verification"]:
+                    verdict = name + "-modified-candidate"
+                    break
+                if name == "regression" and result["source_entries_modified"]:
+                    verdict = "regression-mutated-source"
+                    break
                 if result["status"] != "passed":
                     verdict = name + "-failed"
                     break
