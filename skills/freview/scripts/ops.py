@@ -707,8 +707,19 @@ def main() -> int:
             permitted = hook_allowed(args.stage or "", policy, branch=branch,
                                      updates=updates, repo=repo)
             result = {"allowed": permitted, "kind": args.stage, "branch": branch}
+            if permitted and args.stage == "pre-push" and policy["modules"]["tests"]:
+                scratch_path = os.environ.get("FREVIEW_OPS_SCRATCH")
+                if not scratch_path:
+                    result["allowed"] = False
+                    result["reason"] = "FREVIEW_OPS_SCRATCH explicitly required for test gate"
+                else:
+                    gate = run_stage("tests", policy, repo, Path(scratch_path),
+                        allow_execute=True,
+                        allow_credentials=os.environ.get("FREVIEW_OPS_ALLOW_CREDENTIALS") == "1")
+                    result["test_gate"] = gate
+                    result["allowed"] = gate["status"] == "passed"
             print(json.dumps(result))
-            return 0 if permitted else 2
+            return 0 if result["allowed"] else 2
         else:
             raise OpsError("Unknown action")
         print(json.dumps(result, indent=2, sort_keys=True))
