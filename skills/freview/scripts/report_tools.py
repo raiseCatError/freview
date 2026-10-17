@@ -166,6 +166,23 @@ def load(path):
         when = dt.datetime.fromisoformat(report["timestamp_utc"])
         if when.utcoffset() != dt.timedelta(0):
             raise ValueError("timestamp_utc must use UTC, not a different offset")
+    # Optional claim metadata is untrusted even after structural validation.
+    # Duplicate claim identities would make daily evidence deltas ambiguous.
+    claim_ids = set()
+    for claim in report.get("claim_evidence", []):
+        claim_id = claim["claim_id"]
+        if claim_id in claim_ids:
+            raise ValueError("Duplicate claim evidence ID")
+        claim_ids.add(claim_id)
+        if (claim["evidence_state"] == "independently-reproduced" and
+                claim["source_actor"] not in ("independent-auditor", "ci")):
+            raise ValueError("Independent reproduction cannot be attributed solely to worker/unknown")
+    source_ids = set()
+    for source in report.get("spec_sources", []):
+        key = (source["provider"], source["path"])
+        if key in source_ids:
+            raise ValueError("Duplicate specification source")
+        source_ids.add(key)
     findings = report["findings"]
     if not isinstance(findings, list):
         raise ValueError("Findings must be an array")
@@ -209,7 +226,7 @@ def compare(before, after):
         raise ValueError("Cannot compare reports based on different integration baselines")
     old = {x["id"]: x for x in before["findings"]}
     new = {x["id"]: x for x in after["findings"]}
-    return {
+    result = {
         "kind": "freview-finding-delta/1",
         "repository": identity(after),
         "before": before["timestamp_utc"], "after": after["timestamp_utc"],
@@ -227,6 +244,20 @@ def compare(before, after):
         ),
         "warning": "absent_from_new_report is NOT a verified fix. Validate each disappeared finding against the actual implementation and execution evidence."
     }
+    if "claim_evidence" in before and "claim_evidence" in after:
+        old_claims = {c["claim_id"]: c for c in before["claim_evidence"]}
+        new_claims = {c["claim_id"]: c for c in after["claim_evidence"]}
+        result["claim_evidence_delta"] = {
+            "new": [new_claims[k] for k in sorted(new_claims.keys() - old_claims.keys())],
+            "absent_from_new_report": [old_claims[k] for k in sorted(old_claims.keys() - new_claims.keys())],
+            "changed": [{"before": old_claims[k], "after": new_claims[k]}
+                        for k in sorted(old_claims.keys() & new_claims.keys())
+                        if old_claims[k] != new_claims[k]],
+            "unchanged_count": sum(old_claims[k] == new_claims[k]
+                                   for k in old_claims.keys() & new_claims.keys()),
+            "warning": "Claims absent from the newer report are not proven completed, fixed or invalidated."
+        }
+    return result
 
 
 def safe_markdown(value):
