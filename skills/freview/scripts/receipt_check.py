@@ -8,13 +8,15 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import sys
+import os
+import stat
 from pathlib import Path
 
 MAX_BYTES = 131_072
 MAX_CHECKS = 64
 SHA = re.compile(r"^[0-9a-f]{40}$")
 SAFE_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
+REPO_NAME = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 KINDS = {"worker", "independent", "ci"}
 MAX_EVIDENCE = 8
 
@@ -32,7 +34,7 @@ def validate(receipt: object, *, expected_sha: str | None = None) -> dict:
     if receipt.get("schema_version") != 1:
         errors.append("unsupported-schema-version")
     repo = receipt.get("repository")
-    if not isinstance(repo, str) or not SAFE_ID.fullmatch(repo.replace("/", ":")):
+    if not isinstance(repo, str) or not REPO_NAME.fullmatch(repo) or ".." in repo:
         errors.append("invalid-repository")
     sha = receipt.get("head_sha")
     if not isinstance(sha, str) or not SHA.fullmatch(sha):
@@ -87,9 +89,12 @@ def validate(receipt: object, *, expected_sha: str | None = None) -> dict:
         checked.append({"id": identifier if isinstance(identifier, str) else None,
                         "actor_claimed": actor if actor in KINDS else None,
                         "reported_exit_code": code if type(code) is int else None})
-    status = "invalid" if errors else "contradictory" if any(
-        "unexpected-head-sha" in error or "mismatched-check-sha" in error for error in errors
-    ) else "recorded-only"
+    mismatch = any("unexpected-head-sha" in e or "mismatched-check-sha" in e for e in errors)
+    red = any("nonzero-exit" in w for w in warnings)
+    incomplete = any("no-artifact-or-run-reference" in w for w in warnings)
+    status = ("contradictory" if mismatch else "invalid" if errors
+              else "failed" if red else "incomplete" if incomplete
+              else "claimed-evidence")
     # Consistency, never trust provenance: a valid receipt cannot establish
     # that a command ran or that the actor was independent.
     return {"status": status, "errors": errors, "warnings": warnings,
@@ -102,23 +107,27 @@ def main() -> int:
     parser.add_argument("--expected-sha", help="exact lowercase 40-character Git SHA")
     args = parser.parse_args()
     try:
-        if args.receipt.is_symlink() or not args.receipt.is_file():
-            raise ValueError("receipt must be a regular non-symlink file")
-        if args.receipt.stat().st_size > MAX_BYTES:
-            raise ValueError("receipt exceeds byte limit")
-        with args.receipt.open("rb") as source:
+        flags = os.O_RDONLY
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        if args.receipt.is_symlink():
+            raise ValueError("receipt is a symlink")
+        fd = os.open(args.receipt, flags)
+        with os.fdopen(fd, "rb") as source:
+            if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                raise ValueError("receipt is not a regular file")
             raw = source.read(MAX_BYTES + 1)
         if len(raw) > MAX_BYTES:
             raise ValueError("receipt exceeds byte limit")
         receipt = json.loads(raw.decode("utf-8"))
         result = validate(receipt, expected_sha=args.expected_sha)
-    except (OSError, ValueError, UnicodeError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, UnicodeError, json.JSONDecodeError):
         # Avoid echoing arbitrary secret-bearing file paths or contents.
         print(json.dumps({"status": "invalid", "errors": ["unreadable-or-invalid-receipt"],
                           "provenance_verified": False}))
         return 2
     print(json.dumps(result, sort_keys=True, indent=2))
-    return 0 if result["status"] == "recorded-only" else 2
+    return 0 if result["status"] == "claimed-evidence" else 2
 
 
 if __name__ == "__main__":
