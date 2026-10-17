@@ -220,6 +220,7 @@ def _limited_archive(repo: Path, archive: Path, sha: str) -> None:
                         written += min(len(data), capacity)
                         if len(data) > capacity:
                             raise OpsError("Archive exceeds scratch byte budget")
+            proc.stdout.close()
             if proc.wait(timeout=2) != 0:
                 raise OpsError("Git archive failed")
     except (OpsError, OSError, subprocess.TimeoutExpired):
@@ -368,6 +369,7 @@ def _execute(stage: str, policy: dict, workspace: Path, storage: Path, sha: str,
                             break
                     if truncated:
                         break
+            process.stdout.close()
             if timed_out or truncated:
                 try:
                     os.killpg(process.pid, 9)
