@@ -1,6 +1,7 @@
 # Review report contract
 
 Always include:
+- When requirements/specs are available, distinguish paths discovered, content inspected and true behavioral evidence. Optionally populate `spec_sources` and `claim_evidence` per the [evidence reconciliation protocol](evidence-reconciliation.md); never promote an unauthenticated receipt to independently reproduced verification.
 - Repository, root/remote, observation timestamp, *exact* base/head SHAs, development and publication branches, selected/excluded categories, audit mode, available local/remote permissions.
 - Short executive summary with critical blockers, meaningful discrepancies and factual limitations.
 - Status classification separate from priority/severity.
