@@ -60,6 +60,19 @@ class SpecInventoryTests(unittest.TestCase):
             output = inventory.discover(root)
             self.assertTrue(any("oversized" in warning for warning in output["warnings"]))
 
+    def test_many_irrelevant_files_hit_traversal_cap(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = root / "specs"
+            directory.mkdir()
+            for n in range(inventory.MAX_VISITED + 2):
+                (directory / f"{n:05}.bin").touch()
+            result = inventory.discover(root)
+            self.assertTrue(result["truncated"])
+            self.assertEqual(result["status"], "partial")
+            self.assertIn("entry-scan-budget-exceeded", result["warnings"])
+            self.assertEqual(result["artifacts"], [])
+
     def test_no_file_content_and_invalid_limits(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
