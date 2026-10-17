@@ -76,6 +76,16 @@ class IsolationContracts(unittest.TestCase):
         self.assertEqual(result["executions"][0]["status"], "passed")
         self.assertTrue(result["executions"][0]["workspace_modified"])
 
+    def test_checkpoint_identifies_verified_copy_not_only_original_commit(self):
+        result = self.run_pipeline(self.policy(tests="print('pass')"))
+        record = ops.inspect_checkpoint(Path(result["checkpoint_path"]))
+        stage = record["stage_receipts"][0]
+        self.assertEqual(stage["candidate_digest"], result["original_workspace_digest"])
+        self.assertTrue(Path(stage["verification_workspace"]).resolve().is_relative_to(
+            self.scratch.resolve()))
+        self.assertFalse(stage["source_entries_modified"])
+        self.assertTrue(Path(stage["verification_workspace"]).is_dir())
+
     def test_test_that_overwrites_source_is_not_a_valid_gate(self):
         script = ("from pathlib import Path;"
                   "Path('src/module.py').write_text('FAKE=1');"
