@@ -103,6 +103,14 @@ class AutonomyMutationTests(unittest.TestCase):
         self.assertIsNotNone(result["shipping"])
         self.assertFalse(result["workspace_modified"])
 
+    def test_checkpoint_preserves_mutation_quality_evidence(self):
+        result=self.run_pipeline(self.policy())
+        summary=ops.inspect_checkpoint(Path(result["checkpoint_path"]))
+        stage=next(item for item in summary["stage_receipts"] if item["stage"]=="mutation")
+        self.assertEqual(stage["mutation_quality"]["score"],100.0)
+        self.assertTrue(stage["mutation_report_fresh"])
+        self.assertEqual(stage["mutation_quality"]["counts"]["valid"],1)
+
     def test_mutation_gate_blocks_if_below_threshold(self):
         report=json.loads(json.dumps(REPORT))
         report["files"]["src/a.py"]["mutants"][0]["status"]="Survived"
