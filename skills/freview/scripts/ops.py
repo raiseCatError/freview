@@ -667,7 +667,13 @@ def _checkpoint_data(sha: str, initial_digest: str, current_digest: str,
             "stage": item["stage"], "status": item["status"],
             "exit_code": item["exit_code"], "log_path": item["log_path"],
             "output_truncated": item["output_truncated"],
-            "workspace_digest_after": item["workspace_digest_after"]
+            "workspace_digest_after": item["workspace_digest_after"],
+            **({
+                "candidate_digest": item["candidate_digest"],
+                "verification_workspace": item["verification_workspace"],
+                "source_entries_modified": item["source_entries_modified"],
+                "candidate_modified_during_verification": item["candidate_modified_during_verification"],
+            } if "candidate_digest" in item else {})
         } for item in receipts],
         "untrusted_metadata": True, "resumes_execution": False,
         "attested": False,
@@ -745,8 +751,12 @@ def inspect_checkpoint(path: Path) -> dict:
         raise OpsError("Checkpoint contract invalid")
     receipt_keys = {"stage", "status", "exit_code", "log_path",
                     "output_truncated", "workspace_digest_after"}
+    verification_keys = {"candidate_digest", "verification_workspace",
+                         "source_entries_modified", "candidate_modified_during_verification"}
     for item in value["stage_receipts"]:
-        if (not isinstance(item, dict) or set(item) != receipt_keys or
+        if (not isinstance(item, dict) or
+                not receipt_keys.issubset(item) or
+                set(item) not in (receipt_keys, receipt_keys | verification_keys) or
                 not isinstance(item["stage"], str) or item["stage"] not in STAGES or
                 not isinstance(item["status"], str) or item["status"] not in
                     ("passed", "failed", "timeout", "output-limit") or
@@ -757,6 +767,14 @@ def inspect_checkpoint(path: Path) -> dict:
                 not isinstance(item["workspace_digest_after"], str) or
                 not re.fullmatch(r"[0-9a-f]{64}", item["workspace_digest_after"])):
             raise OpsError("Invalid checkpoint stage receipt")
+        if verification_keys.issubset(item):
+            if (not isinstance(item["candidate_digest"], str) or
+                    not re.fullmatch(r"[0-9a-f]{64}", item["candidate_digest"]) or
+                    not isinstance(item["verification_workspace"], str) or
+                    not 1 <= len(item["verification_workspace"]) <= 4096 or
+                    type(item["source_entries_modified"]) is not bool or
+                    type(item["candidate_modified_during_verification"]) is not bool):
+                raise OpsError("Invalid verification workspace provenance")
     # Syntactic consistency != authentic execution or tamper-proof metadata.
     return value
 
