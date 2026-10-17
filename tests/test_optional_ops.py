@@ -246,6 +246,14 @@ class OptionalOperationsTests(unittest.TestCase):
             ops.run_stage("tests", policy, self.repo, inside,
                           allow_execute=True, expected_sha=self.head)
 
+    def test_pipeline_with_all_modules_disabled_does_not_claim_checks(self):
+        policy = self.policy()
+        with self.assertRaises(ops.OpsError):
+            ops.pipeline(policy, self.repo, self.scratch,
+                         allow_execute=True, expected_sha=self.head,
+                         requirements="One task")
+        self.assertEqual(list(self.scratch.iterdir()), [])
+
     def test_pipeline_cannot_claim_shipping_without_any_test_execution(self):
         policy = self.policy(shipping=True)
         with self.assertRaises(ops.OpsError):
