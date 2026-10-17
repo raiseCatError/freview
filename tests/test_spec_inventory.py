@@ -46,6 +46,18 @@ class SpecInventoryTests(unittest.TestCase):
             self.assertEqual(result["artifacts"], [])
             self.assertTrue(any("symlink-skipped" in x for x in result["warnings"]))
 
+    def test_rejects_symlinked_parent_of_source_directory(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            outside = root / "elsewhere"
+            (outside / "specs").mkdir(parents=True)
+            (outside / "specs" / "secret.md").write_text("private", encoding="utf-8")
+            (root / "openspec").symlink_to(outside, target_is_directory=True)
+            result = inventory.discover(root)
+            self.assertEqual(result["artifacts"], [])
+            self.assertTrue(any("openspec/specs" in w for w in result["warnings"]))
+            self.assertEqual(result["status"], "partial")
+
     def test_limits_and_oversized(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
