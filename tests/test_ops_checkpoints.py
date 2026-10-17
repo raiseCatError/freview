@@ -52,7 +52,8 @@ class CheckpointTests(unittest.TestCase):
                               requirements="Return correct value", rounds=2)
         path = Path(result["checkpoint_path"])
         self.assertTrue(path.is_file())
-        self.assertTrue(path.is_relative_to(self.scratch))
+        # macOS can canonicalize /var to /private/var for scratch.
+        self.assertTrue(path.resolve().is_relative_to(self.scratch.resolve()))
         summary = ops.inspect_checkpoint(path)
         self.assertEqual(summary["source_sha"], self.sha)
         self.assertEqual(summary["status"], "complete")
