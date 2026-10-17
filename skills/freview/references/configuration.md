@@ -50,3 +50,7 @@ The project may document checks/QA requirements in existing `AGENTS.md`, contrib
 ### Future schema changes
 
 Version the schema and add migrations only with review. Reject unknown configuration versions rather than silently guessing. Do not auto-create `.freview.json` in someone else's repository.
+
+## Separate opt-in operations policy
+
+The independent `.freview-ops.json` file is **not** an extension of `.freview.json`. Its [versioned JSON Schema](../assets/schemas/freview-ops.schema.json), [safe default example](../../../examples/freview-ops.example.json), and [operations manual](optional-ops.md) cover deliberately enabled worker/reviewer commands, tests, mutation quality, execution budgets, and local Git hooks. Its contents never grant execution privileges by themselves: using an executable module requires an explicit user-requested workflow, a trusted checkout, an approved scratch location and the appropriate execution/credential flags. Regular Standard and Full audits remain read-only.
