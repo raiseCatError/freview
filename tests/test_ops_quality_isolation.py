@@ -58,7 +58,7 @@ class IsolationContracts(unittest.TestCase):
                        "max_rounds": 2}
         })
 
-    def run(self, policy):
+    def run_pipeline(self, policy):
         return ops.pipeline(policy, self.repo, self.scratch,
                             allow_execute=True, expected_sha=self.sha,
                             requirements="Evaluate src/module.py without modifying source")
@@ -68,7 +68,7 @@ class IsolationContracts(unittest.TestCase):
                   "Path('__pycache__').mkdir();"
                   "Path('__pycache__/module.pyc').write_bytes(b'cache');"
                   "print('pass')")
-        result = self.run(self.policy(tests=script))
+        result = self.run_pipeline(self.policy(tests=script))
         self.assertEqual(result["verdict"], "checks-executed-without-authenticated-verdict")
         self.assertFalse(result["workspace_modified"])
         self.assertIsNotNone(result["shipping"])
@@ -80,7 +80,7 @@ class IsolationContracts(unittest.TestCase):
         script = ("from pathlib import Path;"
                   "Path('src/module.py').write_text('FAKE=1');"
                   "print('pass')")
-        result = self.run(self.policy(tests=script))
+        result = self.run_pipeline(self.policy(tests=script))
         self.assertEqual(result["verdict"], "tests-mutated-source")
         self.assertIsNone(result["shipping"])
         self.assertFalse(result["workspace_modified"])
@@ -91,7 +91,7 @@ class IsolationContracts(unittest.TestCase):
         reviewer = ("from pathlib import Path;"
                     "Path('src/module.py').write_text('TAMPERED=1');"
                     "print('APPROVED')")
-        result = self.run(self.policy(tests="pass", reviewer=reviewer))
+        result = self.run_pipeline(self.policy(tests="pass", reviewer=reviewer))
         self.assertEqual(result["verdict"], "review-mutated-source")
         self.assertIsNone(result["shipping"])
         candidate = Path(result["scratch_workspace"])
@@ -101,7 +101,7 @@ class IsolationContracts(unittest.TestCase):
         mutant = ("from pathlib import Path;"
                   "Path('mutation-results.txt').write_text('survivors=2');"
                   "print('mutator invocation completed')")
-        result = self.run(self.policy(tests="pass", mutation=mutant))
+        result = self.run_pipeline(self.policy(tests="pass", mutation=mutant))
         self.assertEqual(result["verdict"], "checks-executed-without-authenticated-verdict")
         self.assertFalse(result["workspace_modified"])
         self.assertTrue(result["executions"][-1]["workspace_modified"])
