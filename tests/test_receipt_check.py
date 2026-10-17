@@ -1,6 +1,9 @@
 """Tests for the non-executing verification receipt consistency checker."""
 import importlib.util
 from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import unittest
 
 MODULE = Path(__file__).resolve().parents[1] / "skills/freview/scripts/receipt_check.py"
@@ -65,6 +68,22 @@ class ReceiptTests(unittest.TestCase):
         receipt = sample()
         receipt["checks"] = receipt["checks"] * 65
         self.assertIn("invalid-check-count", receipts.validate(receipt)["errors"])
+
+    def test_non_string_actor_fails_closed(self):
+        receipt = sample()
+        receipt["checks"][0]["actor"] = ["independent"]
+        result = receipts.validate(receipt)
+        self.assertEqual(result["status"], "invalid")
+        self.assertIn("check-0:invalid-actor", result["errors"])
+
+    def test_rejects_oversized_receipt_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "receipt.json"
+            path.write_bytes(b"x" * (receipts.MAX_BYTES + 1))
+            p = subprocess.run([sys.executable, str(MODULE), str(path)],
+                               capture_output=True, text=True, timeout=20)
+            self.assertEqual(p.returncode, 2)
+            self.assertNotIn(str(path), p.stdout)
 
     def test_duplicate_ids(self):
         receipt = sample()
