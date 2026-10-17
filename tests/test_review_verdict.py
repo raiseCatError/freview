@@ -226,8 +226,8 @@ class PipelineContractTests(unittest.TestCase):
           "reviewed_paths=['src/module.py'],reason='not ready')))"
         )
         result = self.run_pipeline(self.policy(reviewer, worker="pass"))
-        self.assertEqual(result["review_cycles"], 3)
-        self.assertEqual(result["verdict"], "changes-requested")
+        self.assertEqual(result["review_cycles"], 2)
+        self.assertEqual(result["verdict"], "no-progress")
         self.assertIsNone(result["shipping"])
         unrepairable = self.run_pipeline(self.policy(reviewer))
         self.assertEqual(unrepairable["review_cycles"], 1)
