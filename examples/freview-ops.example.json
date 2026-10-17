@@ -26,5 +26,18 @@
     "max_rounds": 2,
     "max_output_bytes": 16384
   },
-  "pass_env": []
+  "pass_env": [],
+  "mutation_quality": {
+    "format": "auto",
+    "mode": "advisory",
+    "min_score": 60,
+    "min_valid_mutants": 1,
+    "max_survivors": 12
+  },
+  "autonomy": {
+    "max_stage_runs": 12,
+    "stop_on_no_progress": true,
+    "max_repeated_findings": 1,
+    "require_mutation_for_shipping": false
+  }
 }
