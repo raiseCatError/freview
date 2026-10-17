@@ -148,6 +148,17 @@ class OptionalOperationsTests(unittest.TestCase):
         self.assertEqual(result["shipping"]["status"], "handoff-only")
         self.assertFalse(result["shipping"]["merged"])
 
+    def test_git_archive_stream_never_writes_beyond_byte_budget(self):
+        archive = self.scratch / "bounded.tar"
+        saved = ops.MAX_ARCHIVE
+        ops.MAX_ARCHIVE = 1024
+        try:
+            with self.assertRaises(ops.OpsError):
+                ops._limited_archive(self.repo, archive, self.head)
+            self.assertLessEqual(archive.stat().st_size, 1024)
+        finally:
+            ops.MAX_ARCHIVE = saved
+
     def test_failing_test_and_evidence_not_green(self):
         policy = self.policy(tests=True)
         policy["commands"]["tests"] = [sys.executable, "-c", "raise SystemExit(7)"]
