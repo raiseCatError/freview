@@ -444,7 +444,7 @@ def regression_sensitivity(policy: dict, repo: Path, scratch: Path,
                             "or unrelated incompatibility; inspect assertion results")}
 
 def hook_allowed(kind: str, policy: dict, *, branch: str,
-                 updates: list[str] | None = None) -> bool:
+                 updates: list[str] | None = None, repo: Path | None = None) -> bool:
     if not policy["modules"]["hooks"] or kind not in ("pre-commit", "pre-push"):
         return False
     if any(_matches_branch(branch, protected) for protected in PROTECTED):
@@ -462,11 +462,24 @@ def hook_allowed(kind: str, policy: dict, *, branch: str,
                 return False
             if len(parts) == 4:
                 old = parts[3]
+                new = parts[1]
                 if old == "0" * 40:
                     continue
-                # Cannot prove force-push safety from metadata alone.
-                # Existing ref update requires explicit human verification.
-                return False
+                if (repo is None or not SHA.fullmatch(old) or
+                        not SHA.fullmatch(new)):
+                    return False
+                env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+                env["GIT_CONFIG_NOSYSTEM"] = "1"
+                try:
+                    ancestry = subprocess.run(["git", "-c", "core.fsmonitor=false",
+                         "-c", "core.hooksPath=/dev/null", "merge-base",
+                         "--is-ancestor", old, new], cwd=repo, env=env,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         timeout=10)
+                except (OSError, subprocess.TimeoutExpired):
+                    return False
+                if ancestry.returncode != 0:
+                    return False
     return True
 
 
@@ -691,7 +704,8 @@ def main() -> int:
         elif args.action == "hook":
             branch = _git(repo, "symbolic-ref", "--quiet", "--short", "HEAD")
             updates = sys.stdin.read(8192).splitlines() if args.stage == "pre-push" else []
-            permitted = hook_allowed(args.stage or "", policy, branch=branch, updates=updates)
+            permitted = hook_allowed(args.stage or "", policy, branch=branch,
+                                     updates=updates, repo=repo)
             result = {"allowed": permitted, "kind": args.stage, "branch": branch}
             print(json.dumps(result))
             return 0 if permitted else 2
