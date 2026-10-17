@@ -25,7 +25,7 @@
 - Caught and fixed a status precedence issue: contradictory SHA errors were formerly swallowed by a generic invalid status.
 - Caught and fixed a malformed-actor crash (list/object instead of string) and inconsistent `provenance_verified` on the non-object failure path.
 - Caught and fixed receipt schema version accepting `true` or `1.0` via Python equality; optional note/suite fields now have bounded types.
-- Reading uses a bounded, no-follow regular-file descriptor where supported. Input and output contain **untrusted assertions**. No JSON receipt can prove execution, test adequacy, or reviewer independence.
+- Reading uses a bounded, no-follow regular-file descriptor where supported. A final review found a potential FIFO-open hang; the helper now opens nonblocking and rejects non-regular input before any read, with a dedicated regression. Input and output contain **untrusted assertions**. No JSON receipt can prove execution, test adequacy, or reviewer independence.
 - **Remaining:** named URLs are not fetched/authenticated, log/JUnit contents aren't independently inspected, commands aren't replayed, and live CI provenance isn't proven by this helper. The separate agent Full audit must do that with authorization.
 
 ## Review: C3 report integration
