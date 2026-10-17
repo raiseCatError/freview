@@ -186,28 +186,59 @@ def _scratch(repo: Path, root: Path) -> Path:
     return resolved
 
 
+
+def _limited_archive(repo: Path, archive: Path, sha: str) -> None:
+    """Create git archive, fail before ever writing past the scratch byte cap."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    proc = None
+    written = 0
+    deadline = time.monotonic() + 30
+    try:
+        with archive.open("xb") as sink:
+            proc = subprocess.Popen(["git", "-c", "core.hooksPath=/dev/null",
+                "-c", "core.fsmonitor=false", "archive", "--format=tar", sha],
+                cwd=repo, env=env, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                start_new_session=True)
+            with selectors.DefaultSelector() as selector:
+                selector.register(proc.stdout, selectors.EVENT_READ)
+                while selector.get_map():
+                    remain = deadline - time.monotonic()
+                    if remain <= 0:
+                        raise OpsError("Git archive timed out")
+                    ready = selector.select(timeout=remain)
+                    if not ready:
+                        raise OpsError("Git archive timed out")
+                    for key, _ in ready:
+                        data = os.read(key.fd, 8192)
+                        if not data:
+                            selector.unregister(key.fileobj)
+                            continue
+                        capacity = MAX_ARCHIVE - written
+                        sink.write(data[:capacity])
+                        written += min(len(data), capacity)
+                        if len(data) > capacity:
+                            raise OpsError("Archive exceeds scratch byte budget")
+            if proc.wait(timeout=2) != 0:
+                raise OpsError("Git archive failed")
+    except (OpsError, OSError, subprocess.TimeoutExpired):
+        if proc is not None and proc.poll() is None:
+            try:
+                os.killpg(proc.pid, 9)
+            except OSError:
+                proc.kill()
+            proc.wait()
+        raise OpsError("Archive failed, over budget or timed out") from None
+
+
 def _extract_archive(repo: Path, root: Path, sha: str) -> Path:
     # Capture archive in explicit scratch, never tempfile's implicit internal root.
     working = Path(tempfile.mkdtemp(prefix="freview-ops-", dir=root))
     destination = working / "work"
     destination.mkdir()
     archive = working / "snapshot.tar"
-    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
-    env["GIT_CONFIG_NOSYSTEM"] = "1"
     try:
-        with archive.open("wb") as sink:
-            with subprocess.Popen(["git", "-c", "core.hooksPath=/dev/null",
-                                   "-c", "core.fsmonitor=false", "archive",
-                                   "--format=tar", sha], cwd=repo, env=env,
-                                  stdout=sink, stderr=subprocess.DEVNULL) as proc:
-                try:
-                    proc.wait(timeout=30)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    proc.wait()
-                    raise OpsError("Git archive timed out")
-                if proc.returncode:
-                    raise OpsError("Git archive failed")
+        _limited_archive(repo, archive, sha)
         if archive.stat().st_size > MAX_ARCHIVE:
             raise OpsError("Archive too large for configured safe bounds")
         with tarfile.open(archive, "r:") as tar:
