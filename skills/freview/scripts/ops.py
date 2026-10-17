@@ -460,9 +460,8 @@ def install_hooks(policy: dict, repo: Path, *, allow_install: bool = False) -> l
                                cwd=repo, capture_output=True, text=True)
     if hook_path.returncode == 0 and hook_path.stdout.strip():
         raise OpsError("Existing core.hooksPath; refusing to replace")
-    directory = Path(_git(repo, "rev-parse", "--git-path", "hooks"))
-    if not directory.is_absolute():
-        directory = repo / directory
+    common = Path(_git(repo, "rev-parse", "--git-common-dir"))
+    directory = (common if common.is_absolute() else repo / common) / "hooks"
     if directory.is_symlink() or not directory.is_dir():
         raise OpsError("Hooks destination unavailable")
     targets = [directory / "pre-commit", directory / "pre-push"]
