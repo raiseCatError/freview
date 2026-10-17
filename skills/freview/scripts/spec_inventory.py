@@ -1,6 +1,7 @@
 """Bounded, metadata-only discovery of existing specification artifacts.
 
-Never reads spec contents, follows symlinks, or executes repository commands.
+Never reads spec contents or executes repository commands. Observed symlink
+paths are skipped, but concurrent path replacement requires OS sandboxing.
 This inventory is a lead for an agent's later authorized evidence review, not
 proof of a requirement or completed implementation.
 """
