@@ -83,7 +83,7 @@ The second command inspects a supplied JSON receipt and never runs its test comm
 
 ## Optional operations: everything off by default
 
-The preview [freview ops companion](skills/freview/references/optional-ops.md) adds **separately enabled** specification/plan generation, worker CLI invocation, isolated test execution, fresh-process adversarial reviewer invocation (up to 3 bounded cycles), mutation-tool delegation, exact-commit baseline regression sensitivity, local Git hook guards and human shipping handoff. These are **not part of the default read-only audit**. No untrusted repository configuration can silently authorize execution, install tools or publish releases.
+The preview [freview ops companion](skills/freview/references/optional-ops.md) adds **separately enabled** specification/plan generation, worker CLI invocation, isolated test execution, fresh-process **structured JSON** adversarial reviewer verdicts (up to 3 bounded repair cycles), mutation-tool delegation, exact-commit baseline regression sensitivity, local Git hook guards and human shipping handoff. These are **not part of the default read-only audit**. No untrusted repository configuration can silently authorize execution, install tools or publish releases.
 
 ```sh
 # No config = all modules disabled, no execution or tokens
@@ -95,7 +95,7 @@ python3 -I skills/freview/scripts/ops.py plan --repo . --requirements "Desired b
 # See the full guide for --scratch, --expected-sha and --allow-execute.
 ```
 
-The helper runs explicitly configured test/agent programs in a **disposable committed-tree snapshot**, not the original checkout. This is isolation of files, **not a secure OS sandbox**. Real Claude/Codex tokens/accounts, native agent activation, mutation scores, correctness, real release authorization and cross-agent independence remain separately verifiable and are **not** certified by synthetic CI fixtures. When a worker modifies the disposable source snapshot, freview records its workspace fingerprint and **blocks the shipping handoff until those edits are integrated and independently checked**. Shipping is a handoff, not an automated push, merge or deployment. [Design and recovery journal](docs/roadmap/optional-ops-2026-10.md).
+A completed reviewer process cannot approve itself with plain text: freview validates exact source/workspace identity and retains [non-resuming atomic scratch checkpoints](skills/freview/references/review-verdict-protocol.md). The helper runs explicitly configured test/agent programs in a **disposable committed-tree snapshot**, not the original checkout. This is isolation of files, **not a secure OS sandbox**. Real Claude/Codex tokens/accounts, native agent activation, mutation scores, correctness, real release authorization and cross-agent independence remain separately verifiable and are **not** certified by synthetic CI fixtures. When a worker modifies the disposable source snapshot, freview records its workspace fingerprint and **blocks the shipping handoff until those edits are integrated and independently checked**. Shipping is a handoff, not an automated push, merge or deployment. [Design and recovery journal](docs/roadmap/optional-ops-2026-10.md).
 
 ## Review modes
 

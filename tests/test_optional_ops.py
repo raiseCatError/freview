@@ -133,9 +133,9 @@ class OptionalOperationsTests(unittest.TestCase):
         result = ops.pipeline(policy, self.repo, self.scratch,
                               allow_execute=True, expected_sha=self.head,
                               requirements="Implement the spec", rounds=3)
-        self.assertEqual(result["review_cycles"], 3)
+        self.assertEqual(result["review_cycles"], 1)
         self.assertEqual(result["verdict"], "review-process-failed")
-        self.assertEqual(len(result["executions"]), 9)
+        self.assertEqual(len(result["executions"]), 3)
         self.assertFalse(result["independent_success_authenticated"])
 
     def test_worker_modified_disposable_tree_cannot_be_called_integrated_or_shipped(self):
