@@ -98,16 +98,22 @@ def _sum_mutmut(report):
              "suspicious", "segfault", "check_was_interrupted_by_user", "total")
     if not all(name in report and _integer(report[name]) for name in names):
         return _invalid("invalid-mutmut-counts")
-    if sum(report[name] for name in names if name != "total") != report["total"]:
+    exported = sum(report[name] for name in names if name != "total")
+    if exported > report["total"]:
         return _invalid("inconsistent-mutmut-total")
+    # mutmut's total also includes not_checked and caught_by_type_check,
+    # which its current CI stats export omits. We cannot classify the
+    # difference, and must not silently call it fully tested.
+    unclassified = report["total"] - exported
     valid = report["killed"] + report["timeout"] + report["survived"] + report["no_tests"]
-    incomplete = any(report[key] > 0 for key in (
+    incomplete = bool(unclassified) or any(report[key] > 0 for key in (
         "suspicious", "segfault", "check_was_interrupted_by_user"))
     return {
         "status": "incomplete" if incomplete else "complete" if valid else "no-valid-mutants",
         "counts": {"detected": report["killed"] + report["timeout"],
                    "undetected": report["survived"] + report["no_tests"],
-                   "valid": valid, **{key: report[key] for key in names}},
+                   "valid": valid, "unclassified": unclassified,
+                   **{key: report[key] for key in names}},
         "survivors": [], "source_format": "mutmut"
     }
 
@@ -145,7 +151,8 @@ def summarize(report, *, format="auto", min_score=60, min_valid_mutants=1,
     detected = output["counts"]["detected"]
     output["score"] = round(100 * detected / valid, 2) if valid else None
     output["quality_pass"] = (output["status"] == "complete" and valid >= min_valid_mutants and
-                              output["score"] is not None and output["score"] >= min_score)
+                              output["score"] is not None and
+                              100 * detected >= min_score * valid)
     output["threshold"] = min_score
     output["min_valid_mutants"] = min_valid_mutants
     output["untrusted_metadata"] = True
