@@ -42,6 +42,7 @@ The local CLI explicitly imports its bundled sibling helper to support `python3 
 The companion local helper can produce a **local-only machine-readable JSON snapshot/report** with `python3 -I <installed-freview-skill-directory>/scripts/review.py --mode standard --format json`, or write to an explicit `--output` path on approved scratch storage. The agent's comprehensive report is a separate artifact following [JSON report schema](assets/schemas/freview-report.schema.json). Never mislabel the helper's metadata-only output as a completed AI/remote audit.
 
 Read only relevant modules:
+- [Mutation evidence and bounded autonomy (OFF by default)](references/mutation-autonomy.md) — strict Stryker/mutmut report quality, budget-limited repair loops and human release hold; never invoke these on audit discovery alone
 - [Adversarial verdict contract and interruption recovery](references/review-verdict-protocol.md) — strict reviewer JSON, exact scratch identity, durable read-only checkpoints; no automatic resume
 - [Optional operations (OFF by default)](references/optional-ops.md) — opt-in planning, isolated testing, optional reviewer/mutation/baseline checks, Git hooks and shipping handoff; **never run these merely because config exists**
 - [Specification inventory, evidence reconciliation and opt-in independent verification](references/evidence-reconciliation.md) — requirements sources, structured receipts, and limits on conclusions; no automatic execution
