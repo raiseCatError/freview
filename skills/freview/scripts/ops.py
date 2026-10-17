@@ -605,7 +605,7 @@ def uninstall_hooks(repo: Path) -> list[str]:
 
 
 def _review_verdict(receipt: dict, *, expected_sha: str,
-                    expected_digest: str) -> dict:
+                    expected_digest: str, workspace: Path) -> dict:
     """Read bounded reviewer stdout from the approved scratch location.
 
     This is a consistency check of an agent's *claim*, not identity proof.
@@ -625,8 +625,21 @@ def _review_verdict(receipt: dict, *, expected_sha: str,
             content = file.read(module.MAX_BYTES + 1)
     except OSError:
         content = b""
-    return module.validate(content, expected_sha=expected_sha,
-                           expected_digest=expected_digest)
+    result = module.validate(content, expected_sha=expected_sha,
+                             expected_digest=expected_digest)
+    if result["status"] != "invalid":
+        # Existence is independently observable. It does not establish
+        # that the reviewer actually read or understood those files.
+        observed = list(result["reviewed_paths"]) + [
+            item["path"] for item in result["findings"]]
+        for relative in observed:
+            source = workspace.joinpath(*PurePosixPath(relative).parts)
+            if (not source.is_file() or source.is_symlink() or
+                    not source.resolve().is_relative_to(workspace.resolve())):
+                return {"status": "invalid", "reason_code": "unobservable-source-path",
+                        "findings": [], "reviewer_independence_verified": False,
+                        "source_reading_verified": False}
+    return result
 
 
 def _review_prompt(requirements: str, sha: str, digest: str) -> str:
@@ -739,7 +752,8 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                 verdict = "review-process-failed"
                 break
             final_review = _review_verdict(report, expected_sha=sha,
-                                           expected_digest=review_digest)
+                                           expected_digest=review_digest,
+                                           workspace=workspace)
             review_history.append({
                 "cycle": cycle, "status": final_review["status"],
                 "finding_ids": [f["id"] for f in final_review["findings"]]
