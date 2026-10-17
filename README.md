@@ -2,7 +2,9 @@
 
 **Full Review**, pronounced **“f-review”** (the letter **F**, then *review*). Not “free-view” or “fre-view”.
 
-**Full repository review, without guessing what “done” means.**
+**Audit the repo, not the summary.**
+
+Full repository review, without guessing what “done” means.
 
 freview is a portable, evidence-first [Agent Skill](https://agentskills.io/) for assessing the *actual state* of a repository. It discovers how the project works before examining its Git history, worktrees, issues/PRs, implementation reachability, exact-commit CI, release process, documentation, community standards, dependencies and accessibility. It can optionally coordinate specialist code-quality and security reviews, **without copying their functionality**.
 
@@ -65,6 +67,17 @@ freview only tracking,git --check-duplicates # Focused duplicate-work-item check
 By default freview runs Standard, without unnecessary questions. It asks only when a missing essential detail or permission requires a decision. The default stays Standard unless you explicitly request another mode; project config cannot silently enable Full or external scans.
 
 **Important:** Full includes a deep code-quality review, using a trusted installed specialist when appropriate or a bounded native review otherwise. Standard is the recommended daily check **without deep code review**. Full never silently installs tools, executes arbitrary scripts, runs expensive test suites, uploads private code, edits files or invokes external vulnerability scanners; those scanners remain opt-in.
+
+## Requirements and verification evidence
+
+freview now includes optional, dependency-free tools for **candidate specification discovery** (OpenSpec / Spec Kit metadata) and **verification receipt consistency**. The scope is deliberately narrow: an inventory does not establish a requirement, and a receipt cannot authenticate a test run or independent reviewer.
+
+```sh
+python3 -I skills/freview/scripts/spec_inventory.py --root .
+python3 -I skills/freview/scripts/receipt_check.py receipt.json --expected-sha FULL_40_CHARACTER_SHA
+```
+
+The second command inspects a supplied JSON receipt and never runs its test command. A reference can be coherent yet unverified; failing, mismatched and incomplete evidence are reported separately. In a Full review, the agent may reconcile approved specification scenarios with implementation, test quality, exact-head CI, integration, and publication. **Actual independent test reruns, mutation analysis, tool installation, worktree changes, or merge gating require separate permission** and an isolated environment. See the [evidence-first audit protocol](skills/freview/references/evidence-reconciliation.md) and [durable design checkpoints](docs/roadmap/evidence-reconciliation-2026-10.md).
 
 ## Review modes
 
