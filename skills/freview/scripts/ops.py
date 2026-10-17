@@ -25,7 +25,7 @@ import time
 
 MODULES = ("specs", "planning", "implementation", "tests", "adversarial",
            "mutation", "regression", "hooks", "shipping")
-STAGES = ("implementation", "tests", "adversarial", "mutation", "regression")
+STAGES = ("planning", "implementation", "tests", "adversarial", "mutation", "regression")
 LIMITS = {"timeout_seconds": 120, "max_rounds": 3, "max_output_bytes": 16384}
 MAX_CONFIG = 65536
 MAX_ARCHIVE = 32 * 1024 * 1024
@@ -326,6 +326,10 @@ def run_stage(stage: str, policy: dict, repo: Path, scratch: Path,
         raise OpsError("Stage not enabled")
     if not allow_execute:
         raise OpsError("Execution requires --allow-execute and trusted checkout")
+    if stage not in policy["commands"]:
+        raise OpsError("Enabled stage requires an explicit argv")
+    if policy.get("pass_env") and not allow_credentials:
+        raise OpsError("Credential forwarding requires --allow-credentials")
     repo = Path(repo)
     root = _scratch(repo, scratch)
     sha = _repo_head(repo)
@@ -516,6 +520,15 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
         raise OpsError("Requirements over budget")
     if policy["modules"]["implementation"] and not policy["modules"]["tests"]:
         raise OpsError("Autonomous implementation must have tests enabled")
+    if policy["modules"]["shipping"] and not policy["modules"]["tests"]:
+        raise OpsError("No shipping handoff without an enabled test gate")
+    if policy.get("pass_env") and not allow_credentials:
+        raise OpsError("Credential forwarding requires --allow-credentials")
+    for stage in STAGES:
+        if policy["modules"][stage] and stage not in policy["commands"]:
+            if stage == "planning":
+                continue  # built-in non-executing plan requires no program
+            raise OpsError("Enabled executable stage lacks a command: " + stage)
     generated_plan = plan(policy, requirements, sha) if (policy["modules"]["planning"]
                   and policy["modules"]["specs"]) else None
     workspace = _extract_archive(repo, root, sha)
@@ -523,6 +536,14 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
     receipts = []
     verdict = "unverified"
     for cycle in range(1, rounds + 1):
+        if policy["modules"]["planning"] and "planning" in policy["commands"]:
+            report = _execute("planning", policy, workspace, storage, sha,
+                              prompt="Produce a minimal implementation plan with acceptance tests:\n" + requirements,
+                              allow_credentials=allow_credentials)
+            receipts.append(report)
+            if report["status"] != "passed":
+                verdict = "planning-process-failed"
+                break
         if policy["modules"]["implementation"]:
             report = _execute("implementation", policy, workspace, storage, sha,
                               prompt="Implement approved requirements with tests first:\n" + requirements,
