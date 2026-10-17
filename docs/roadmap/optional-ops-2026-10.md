@@ -82,3 +82,7 @@ Fetch and inspect both PR #16 and this branch, the latest CI status for **exact 
 - The bounded three-pass review and accepted fixes are documented in `docs/audits/2026-10-17-optional-ops-three-pass-self-review.md`. This was **one hosted GPT review in three rounds**, not three independent subagents or native Claude/Codex/OpenCode activation.
 - Synthetic tests cover opt-in config, bounded archive, group termination, Git hooks, fast-forward gate, external scratch pre-push tests, baseline sensitivity and optional agent command processes. No production tests, actual mutation score, authenticated independent multi-agent review, automatic PR publishing or deployments were performed.
 - Keep PR #17 draft, stacked on PR #16, and both unmerged. Do **not** publish a release. The final documentation-head CI still requires independent exact-SHA verification after this last commit.
+
+### Final provenance correction
+
+A review caught that successful test runs on a worker-modified **disposable workspace** are **not tests of the original exact Git commit**. Worker/source stages now include before/after workspace fingerprints; any scratch changes prevent an autonomous shipping handoff. The user must integrate changed files, commit them, and rerun independent exact-SHA verification. Regression test: `test_worker_modified_disposable_tree_cannot_be_called_integrated_or_shipped`. This is part of R3, not a fourth independent review. Verify the final code and documentation heads on Ubuntu/macOS before closing; older green CI is not enough.
