@@ -138,6 +138,21 @@ class OptionalOperationsTests(unittest.TestCase):
         self.assertEqual(len(result["executions"]), 9)
         self.assertFalse(result["independent_success_authenticated"])
 
+    def test_worker_modified_disposable_tree_cannot_be_called_integrated_or_shipped(self):
+        policy = self.policy(implementation=True, tests=True, shipping=True)
+        policy["commands"]["implementation"] = [
+            sys.executable, "-c",
+            "from pathlib import Path;Path('new-feature.txt').write_text('implemented')"]
+        policy["commands"]["tests"] = [sys.executable, "-c", "pass"]
+        result = ops.pipeline(policy, self.repo, self.scratch,
+                              allow_execute=True, expected_sha=self.head,
+                              requirements="Implement one behavior")
+        self.assertEqual(result["verdict"], "implementation-not-integrated")
+        self.assertIsNone(result["shipping"])
+        self.assertTrue(result["workspace_modified"])
+        self.assertTrue(result["executions"][0]["workspace_modified"])
+        self.assertNotIn("new-feature.txt", [p.name for p in self.repo.iterdir()])
+
     def test_plan_and_shipping_in_opted_pipeline_are_human_gated(self):
         policy = self.policy(specs=True, planning=True, tests=True, shipping=True)
         policy["commands"]["tests"] = [sys.executable, "-c", "pass"]
