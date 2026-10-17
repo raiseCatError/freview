@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "purpose": "Ground-truth structural adversarial cases. No arbitrary repository test execution.",
+  "cases": [
+    {
+      "id": "reported-green-no-execution-proven",
+      "kind": "receipt",
+      "expected_status": "claimed-evidence",
+      "receipt": {
+        "schema_version": 1,
+        "repository": "example/project",
+        "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "checks": [
+          {
+            "id": "tests",
+            "actor": "worker",
+            "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "command": "python3 -m unittest discover -s tests",
+            "exit_code": 0,
+            "evidence": [
+              "https://github.com/example/project/actions/runs/123"
+            ]
+          }
+        ]
+      },
+      "limit": "A coherent worker-written receipt is NOT proof that a command ran."
+    },
+    {
+      "id": "red-suite-despite-done-claim",
+      "kind": "receipt",
+      "expected_status": "failed",
+      "expected_warning": "check-0:nonzero-exit",
+      "receipt": {
+        "schema_version": 1,
+        "repository": "example/project",
+        "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "checks": [
+          {
+            "id": "tests",
+            "actor": "worker",
+            "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "command": "python3 -m unittest discover -s tests",
+            "exit_code": 1,
+            "evidence": [
+              "https://github.com/example/project/actions/runs/123"
+            ]
+          }
+        ]
+      },
+      "limit": "Detects reported failure, not whether the worker told the truth."
+    },
+    {
+      "id": "stale-green-on-other-commit",
+      "kind": "receipt",
+      "expected_status": "contradictory",
+      "receipt": {
+        "schema_version": 1,
+        "repository": "example/project",
+        "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "checks": [
+          {
+            "id": "tests",
+            "actor": "worker",
+            "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "command": "python3 -m unittest discover -s tests",
+            "exit_code": 0,
+            "evidence": [
+              "https://github.com/example/project/actions/runs/123"
+            ]
+          }
+        ]
+      },
+      "limit": "Reports SHA mismatch even when the exit code is zero."
+    },
+    {
+      "id": "wrong-candidate-sha",
+      "kind": "receipt",
+      "expected_status": "contradictory",
+      "expected_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "receipt": {
+        "schema_version": 1,
+        "repository": "example/project",
+        "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "checks": [
+          {
+            "id": "tests",
+            "actor": "worker",
+            "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "command": "python3 -m unittest discover -s tests",
+            "exit_code": 0,
+            "evidence": [
+              "https://github.com/example/project/actions/runs/123"
+            ]
+          }
+        ]
+      },
+      "limit": "A different intended target invalidates the receipt."
+    },
+    {
+      "id": "no-artifact-to-inspect",
+      "kind": "receipt",
+      "expected_status": "incomplete",
+      "expected_warning": "check-0:no-artifact-or-run-reference",
+      "receipt": {
+        "schema_version": 1,
+        "repository": "example/project",
+        "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "checks": [
+          {
+            "id": "tests",
+            "actor": "worker",
+            "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "command": "python3 -m unittest discover -s tests",
+            "exit_code": 0,
+            "evidence": []
+          }
+        ]
+      },
+      "limit": "A command + exit code without evidence is inadequate."
+    },
+    {
+      "id": "self-declared-independent-review",
+      "kind": "receipt",
+      "expected_status": "claimed-evidence",
+      "expected_warning": "check-0:independence-claimed-not-proven",
+      "receipt": {
+        "schema_version": 1,
+        "repository": "example/project",
+        "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "checks": [
+          {
+            "id": "tests",
+            "actor": "independent",
+            "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "command": "python3 -m unittest discover -s tests",
+            "exit_code": 0,
+            "evidence": [
+              "https://github.com/example/project/actions/runs/123"
+            ]
+          }
+        ]
+      },
+      "limit": "Actor metadata does not authenticate an independent auditor."
+    },
+    {
+      "id": "tests-rewritten-to-pass",
+      "kind": "receipt",
+      "expected_status": "claimed-evidence",
+      "receipt": {
+        "schema_version": 1,
+        "repository": "example/project",
+        "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "checks": [
+          {
+            "id": "tests",
+            "actor": "worker",
+            "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "command": "python3 -m unittest discover -s tests",
+            "exit_code": 0,
+            "evidence": [
+              "https://github.com/example/project/actions/runs/123"
+            ]
+          }
+        ]
+      },
+      "limit": "KNOWN MISS: cannot detect deleted/weakened tests from a receipt; Full code review/approved mutation needed."
+    },
+    {
+      "id": "empty-command",
+      "kind": "receipt",
+      "expected_status": "invalid",
+      "receipt": {
+        "schema_version": 1,
+        "repository": "example/project",
+        "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "checks": [
+          {
+            "id": "tests",
+            "actor": "worker",
+            "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "command": "",
+            "exit_code": 0,
+            "evidence": [
+              "https://github.com/example/project/actions/runs/123"
+            ]
+          }
+        ]
+      },
+      "limit": "Rejects malformed evidence metadata without running a command."
+    },
+    {
+      "id": "real-openspec-paths",
+      "kind": "inventory",
+      "paths": [
+        "openspec/changes/color/specs/theme/spec.md",
+        "openspec/changes/color/tasks.md"
+      ],
+      "expected_status": "inventory-only",
+      "expected_provider": "openspec",
+      "limit": "A discovered path is not a parsed requirement."
+    },
+    {
+      "id": "ambiguous-specs-directory",
+      "kind": "inventory",
+      "paths": [
+        "specs/api/spec.md"
+      ],
+      "expected_status": "inventory-only",
+      "expected_provider": "spec-kit",
+      "limit": "KNOWN FALSE-POSITIVE CANDIDATE: generic specs/ is not definitive Spec Kit adoption."
+    },
+    {
+      "id": "no-spec-source-present",
+      "kind": "inventory",
+      "paths": [
+        "docs/README.md"
+      ],
+      "expected_status": "no-known-artifacts",
+      "expected_provider": null,
+      "limit": "No known path is not proof no requirements exist elsewhere."
+    }
+  ]
+}

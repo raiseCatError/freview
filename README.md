@@ -2,7 +2,9 @@
 
 **Full Review**, pronounced **“f-review”** (the letter **F**, then *review*). Not “free-view” or “fre-view”.
 
-**Full repository review, without guessing what “done” means.**
+**Audit the repo, not the summary.**
+
+Full repository review, without guessing what “done” means.
 
 freview is a portable, evidence-first [Agent Skill](https://agentskills.io/) for assessing the *actual state* of a repository. It discovers how the project works before examining its Git history, worktrees, issues/PRs, implementation reachability, exact-commit CI, release process, documentation, community standards, dependencies and accessibility. It can optionally coordinate specialist code-quality and security reviews, **without copying their functionality**.
 
@@ -10,7 +12,9 @@ It produces a review, not a cleanup script. Default operations are **read-only**
 
 > **Status:** Pre-release read-only preview for trusted repositories; **no version has been tagged or published**. Installation and native discovery depend on agent/runtime configuration. A Full review is not a security certification or physical-device verification.
 
-**Current evidence:** [PR #14](https://github.com/raiseCatError/freview/pull/14) merged at [`b4e9de58`](https://github.com/raiseCatError/freview/commit/b4e9de581107b8b78b4a710a5be93fa4e90510e8), with [99 Python tests passing on both Ubuntu and macOS](https://github.com/raiseCatError/freview/actions/runs/38983887532). User-provided field evidence reports native invocation in Antigravity CLI, Claude Code, Codex and OpenCode; this is **not** four independently re-executed Full audits, and OpenCode's full five-gate acceptance matrix remains unobserved.
+**Pre-evidence-reconciliation baseline:** [PR #14](https://github.com/raiseCatError/freview/pull/14) merged at [`b4e9de58`](https://github.com/raiseCatError/freview/commit/b4e9de581107b8b78b4a710a5be93fa4e90510e8), with [99 Python tests passing on both Ubuntu and macOS](https://github.com/raiseCatError/freview/actions/runs/38983887532). User-provided field evidence reports native invocation in Antigravity CLI, Claude Code, Codex and OpenCode; this is **not** four independently re-executed Full audits, and OpenCode's full five-gate acceptance matrix remains unobserved.
+
+**In-progress enhancement:** [draft PR #16](https://github.com/raiseCatError/freview/pull/16) introduces optional specification inventory, verification-receipt consistency checks, evidence-aware reports and deliberately deceptive metadata fixtures. It remains pre-release; CI and author review are not independent runtime-agent acceptance.
 
 **Dogfooding:** [final pre-release freview-on-freview review](docs/audits/2026-10-17-final-pre-release-self-review.md) · [historical original audit](docs/freview-reviews-freview.md). The newer source review is a bounded, hosted-evidence **partial-audit**, not native invocation in the author's agent session.
 
@@ -65,6 +69,17 @@ freview only tracking,git --check-duplicates # Focused duplicate-work-item check
 By default freview runs Standard, without unnecessary questions. It asks only when a missing essential detail or permission requires a decision. The default stays Standard unless you explicitly request another mode; project config cannot silently enable Full or external scans.
 
 **Important:** Full includes a deep code-quality review, using a trusted installed specialist when appropriate or a bounded native review otherwise. Standard is the recommended daily check **without deep code review**. Full never silently installs tools, executes arbitrary scripts, runs expensive test suites, uploads private code, edits files or invokes external vulnerability scanners; those scanners remain opt-in.
+
+## Requirements and verification evidence
+
+freview now includes optional, dependency-free tools for **candidate specification discovery** (OpenSpec / Spec Kit metadata) and **verification receipt consistency**. The scope is deliberately narrow: an inventory does not establish a requirement, and a receipt cannot authenticate a test run or independent reviewer.
+
+```sh
+python3 -I skills/freview/scripts/spec_inventory.py --root .
+python3 -I skills/freview/scripts/receipt_check.py receipt.json --expected-sha FULL_40_CHARACTER_SHA
+```
+
+The second command inspects a supplied JSON receipt and never runs its test command. Agent-generated reports may optionally list per-requirement evidence; `report_tools.py old.json new.json --format json` then highlights changed or missing claim evidence without pretending absent claims are resolved. A reference can be coherent yet unverified; failing, mismatched and incomplete evidence are reported separately. In a Full review, the agent may reconcile approved specification scenarios with implementation, test quality, exact-head CI, integration, and publication. **Actual independent test reruns, mutation analysis, tool installation, worktree changes, or merge gating require separate permission** and an isolated environment. See the [evidence-first audit protocol](skills/freview/references/evidence-reconciliation.md) and [durable design checkpoints](docs/roadmap/evidence-reconciliation-2026-10.md).
 
 ## Review modes
 

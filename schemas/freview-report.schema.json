@@ -399,6 +399,189 @@
           }
         }
       }
+    },
+    "spec_sources": {
+      "type": "array",
+      "maxItems": 256,
+      "description": "Optional requirements/specification sources. Mere discovery is not implementation verification.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "path",
+          "observation"
+        ],
+        "properties": {
+          "provider": {
+            "enum": [
+              "spec-kit",
+              "openspec",
+              "other"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "role": {
+            "enum": [
+              "specification",
+              "change",
+              "framework",
+              "requirement",
+              "task",
+              "other"
+            ]
+          },
+          "observation": {
+            "enum": [
+              "path-metadata-only",
+              "content-inspected",
+              "not-observed"
+            ]
+          },
+          "ref_sha": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "limitations": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "maxLength": 1024
+            }
+          }
+        }
+      }
+    },
+    "claim_evidence": {
+      "type": "array",
+      "maxItems": 256,
+      "description": "Agent-authored mapping of claims to evidence; schema validation never authenticates receipt, reviewer independence, run, or correctness.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "claim_id",
+          "lifecycle_status",
+          "evidence_state",
+          "test_quality",
+          "source_actor",
+          "requirement_refs",
+          "verification_refs",
+          "limitations"
+        ],
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "lifecycle_status": {
+            "enum": [
+              "proposed",
+              "partially-implemented",
+              "implemented-isolated",
+              "integrated-candidate",
+              "automated-verified",
+              "human-accepted",
+              "released",
+              "deferred",
+              "unknown"
+            ]
+          },
+          "evidence_state": {
+            "enum": [
+              "claim-only",
+              "receipt-referenced",
+              "independently-reproduced",
+              "contradictory",
+              "unverified"
+            ]
+          },
+          "test_quality": {
+            "enum": [
+              "not-reviewed",
+              "reviewed-with-gaps",
+              "reviewed-no-observed-gaps"
+            ]
+          },
+          "source_actor": {
+            "enum": [
+              "worker",
+              "ci",
+              "independent-auditor",
+              "unknown"
+            ]
+          },
+          "ref_sha": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "requirement_refs": {
+            "type": "array",
+            "maxItems": 128,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          },
+          "implementation_refs": {
+            "type": "array",
+            "maxItems": 128,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          },
+          "verification_refs": {
+            "type": "array",
+            "maxItems": 128,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          },
+          "integration_refs": {
+            "type": "array",
+            "maxItems": 128,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          },
+          "publication_refs": {
+            "type": "array",
+            "maxItems": 128,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          },
+          "limitations": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "type": "string",
+              "maxLength": 1024
+            }
+          }
+        }
+      }
     }
   },
   "allOf": [

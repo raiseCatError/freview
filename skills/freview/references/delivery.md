@@ -12,6 +12,8 @@ In every review containing the tracking category, examine issues, PRs, milestone
 
 ## Per-acceptance chain
 
+Existing Spec Kit/OpenSpec files may define acceptance criteria. In Standard, list only source candidates and recorded metadata; in Full, inspect relevant requirement text and verify code reachability. An independent reproduction requires explicit execution permission and an isolated runner, not merely a quoted test command. See [evidence reconciliation](evidence-reconciliation.md).
+
 For each important behavior:
 1. **Specified:** issue/PR/ADR acceptance and documented default.
 2. **Exists:** code path at exact SHA (or an explicit absence search within scope).
