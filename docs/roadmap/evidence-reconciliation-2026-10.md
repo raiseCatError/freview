@@ -46,20 +46,20 @@ These are **separate dimensions**, never a single success score. Independently r
 - [x] Verify actual remote baseline, current merged audits and CI configuration.
 - [x] Create an isolated feature branch from the exact base SHA.
 - [x] Write this plan and recovery journal **before** implementation.
-- [ ] Commit this document to the feature branch.
+- [x] Commit this document to the feature branch.
 **Gate:** durable GitHub commit; main unchanged.
 
 ### C1 — safe, bounded specification discovery
-- [ ] Implement dependency-free, read-only local discovery for **Spec Kit** and **OpenSpec** artifacts (plus optional generic requirements files where unambiguous).
-- [ ] Fail closed on symlinks escaping root, odd filesystem errors, excessive files, file bytes or path depth; do not run project commands or read bodies unless explicit opt-in.
-- [ ] Return explicit provider, artifact path, role and observation limits; **a discovered file is not proof a criterion is met**.
-- [ ] Add fixtures/tests for ordinary, absent, misleading, hostile and truncated trees.
+- [x] Implement dependency-free, read-only local discovery for **Spec Kit** and **OpenSpec** artifacts (plus optional generic requirements files where unambiguous).
+- [x] Fail closed on symlinks escaping root, odd filesystem errors, excessive files, file bytes or path depth; do not run project commands or read bodies unless explicit opt-in.
+- [x] Return explicit provider, artifact path, role and observation limits; **a discovered file is not proof a criterion is met**.
+- [x] Add fixtures/tests for ordinary, absent, misleading, hostile and truncated trees.
 **Gate:** exact head CI with Linux + macOS unittest matrix, no regressions; checkpoint commit.
 
 ### C2 — provenance / audit receipt contract
-- [ ] Provide a small machine-readable bounded receipt validator (metadata, exact SHA, command, exit code, evidence references, independent run vs worker claim). Preserve truthful statuses and call out contradictory refs/unsupported provenance.
-- [ ] Keep receipt evaluation optional; **do not execute test commands**. No personal paths/secrets in public output; metadata is not cryptographically signed.
-- [ ] Add tests for missing/invalid/mismatched SHAs, empty commands, falsified claims, red exits, evidence-less reproduction and oversized reports.
+- [x] Provide a small machine-readable bounded receipt validator (metadata, exact SHA, command, exit code, evidence references, independent run vs worker claim). Preserve truthful statuses and call out contradictory refs/unsupported provenance.
+- [x] Keep receipt evaluation optional; **do not execute test commands**. No personal paths/secrets in public output; metadata is not cryptographically signed.
+- [x] Add tests for missing/invalid/mismatched SHAs, empty commands, falsified claims, red exits, evidence-less reproduction and oversized reports.
 **Gate:** independent focused tests + exact-head CI; checkpoint commit.
 
 ### C3 — agent-level source-to-shipping reconciliation
@@ -101,10 +101,16 @@ These are **separate dimensions**, never a single success score. Independently r
 
 | Checkpoint | Commit | Verification | Status |
 | --- | --- | --- | --- |
-| C0 | Created in this branch (inspect GitHub history) | Plan/branch only | In progress |
-| C1 | pending | pending | Not started |
-| C2 | pending | pending | Not started |
+| C0 | fc3fb224 | GitHub plan commit | Complete |
+| C1 | 438d99b7 | [Ubuntu/macOS exact-head success](https://github.com/raiseCatError/freview/actions/runs/38986224178) | Complete |
+| C2 | 04f919ae | Receipt implementation/tests committed; exact-head CI pending | Under verification |
 | C3 | pending | pending | Not started |
 | C4 | pending | pending | Not started |
 
 Note: this journal is updated in later checkpoint commits. If a worker gets interrupted before doing so, **use GitHub commits and CI as the source of truth**.
+
+## Session update: C1 complete, C2 implementation queued for verification
+
+- C1 successful PR run: https://github.com/raiseCatError/freview/actions/runs/38986224178 at exact head `438d99b7`; Ubuntu/macOS jobs both completed successfully.
+- C2 files: `skills/freview/scripts/receipt_check.py`, `tests/test_receipt_check.py`; CI syntax coverage extended. This checker validates metadata consistency **only** and intentionally outputs `provenance_verified=false`. Untrusted independence assertions are warnings, not confirmations.
+- **Next agent must check C2 exact-head workflow** before starting C3, and independently review test and receipt behavior. Do not mistake older green C1 CI for current C2 CI.
