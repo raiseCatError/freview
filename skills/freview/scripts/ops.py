@@ -33,6 +33,7 @@ MAX_ARCHIVE = 32 * 1024 * 1024
 MAX_UNPACKED = 64 * 1024 * 1024
 MAX_MEMBERS = 4000
 MAX_PROMPT = 4000
+MAX_CHECKPOINT_BYTES = 65536
 MARKER = "# FREVIEW-OPS-MANAGED:v1"
 PROTECTED = ("main", "master", "develop", "release/*")
 FORWARDABLE_ENV = {"HOME", "XDG_CONFIG_HOME", "CODEX_HOME", "CLAUDE_CONFIG_DIR",
@@ -604,6 +605,79 @@ def uninstall_hooks(repo: Path) -> list[str]:
     return removed
 
 
+def _checkpoint_data(sha: str, initial_digest: str, current_digest: str,
+                     cycle: int, receipts: list[dict], status: str,
+                     verdict: str) -> dict:
+    return {
+        "schema_version": 1, "status": status, "source_sha": sha,
+        "initial_workspace_digest": initial_digest,
+        "current_workspace_digest": current_digest,
+        "cycle": cycle, "verdict": verdict,
+        "stage_receipts": [{
+            "stage": item["stage"], "status": item["status"],
+            "exit_code": item["exit_code"], "log_path": item["log_path"],
+            "output_truncated": item["output_truncated"],
+            "workspace_digest_after": item["workspace_digest_after"]
+        } for item in receipts],
+        "untrusted_metadata": True, "resumes_execution": False,
+        "attested": False,
+    }
+
+
+def _save_checkpoint(storage: Path, data: dict) -> Path:
+    """Write stage history with atomic rename exclusively inside approved scratch."""
+    raw = (json.dumps(data, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+    if len(raw) > MAX_CHECKPOINT_BYTES:
+        raise OpsError("Checkpoint size limit exceeded")
+    file = storage / "checkpoint.json"
+    fd, temporary = tempfile.mkstemp(prefix=".freview-checkpoint-", dir=storage)
+    try:
+        with os.fdopen(fd, "wb") as destination:
+            destination.write(raw)
+            destination.flush()
+            os.fsync(destination.fileno())
+        os.replace(temporary, file)
+        return file
+    except OSError:
+        raise OpsError("Unable to persist recovery checkpoint") from None
+    finally:
+        if os.path.lexists(temporary):
+            os.unlink(temporary)
+
+
+def inspect_checkpoint(path: Path) -> dict:
+    """Read a bounded status record only. Never execute/continue from it."""
+    path = Path(path)
+    if path.is_symlink():
+        raise OpsError("Symlink checkpoints are not trusted")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    try:
+        with os.fdopen(os.open(path, flags), "rb") as handle:
+            if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                raise OpsError("Checkpoint must be a regular file")
+            raw = handle.read(MAX_CHECKPOINT_BYTES + 1)
+        if len(raw) > MAX_CHECKPOINT_BYTES:
+            raise OpsError("Checkpoint exceeds input limit")
+        value = json.loads(raw.decode("utf-8", errors="strict"))
+    except (OSError, UnicodeError, ValueError):
+        raise OpsError("Checkpoint malformed or unavailable") from None
+    if (not isinstance(value, dict) or
+            type(value.get("schema_version")) is not int or
+            value["schema_version"] != 1 or
+            value.get("status") not in ("in-progress", "complete") or
+            not isinstance(value.get("source_sha"), str) or
+            not SHA.fullmatch(value["source_sha"]) or
+            not isinstance(value.get("stage_receipts"), list) or
+            len(value["stage_receipts"]) > 64 or
+            any(not isinstance(x, dict) or
+                not isinstance(x.get("stage"), str) or
+                not isinstance(x.get("status"), str) for x in value["stage_receipts"])):
+        raise OpsError("Checkpoint contract invalid")
+    # Ignore any attempted assertion of attestation or replay permission.
+    return {**value, "untrusted_metadata": True,
+            "resumes_execution": False, "attested": False}
+
+
 def _review_verdict(receipt: dict, *, expected_sha: str,
                     expected_digest: str, workspace: Path) -> dict:
     """Read bounded reviewer stdout from the approved scratch location.
@@ -709,6 +783,13 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
     storage = workspace.parent
     receipts = []
     verdict = "unverified"
+    checkpoint = _save_checkpoint(storage, _checkpoint_data(
+        sha, starting_digest, starting_digest, 0, receipts, "in-progress", verdict))
+    def record(receipt: dict, cycle_index: int) -> None:
+        receipts.append(receipt)
+        _save_checkpoint(storage, _checkpoint_data(
+            sha, starting_digest, receipt["workspace_digest_after"],
+            cycle_index, receipts, "in-progress", verdict))
     final_review = None
     review_history = []
     worker_feedback = ""
@@ -717,7 +798,7 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
             report = _execute("planning", policy, workspace, storage, sha,
                 prompt="Produce a short implementation plan and acceptance tests:\n" + requirements,
                 allow_credentials=allow_credentials)
-            receipts.append(report)
+            record(report, cycle)
             if report["status"] != "passed":
                 verdict = "planning-process-failed"
                 break
@@ -726,13 +807,13 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                 prompt=("Implement approved requirements with tests first:\n" +
                         requirements + worker_feedback),
                 allow_credentials=allow_credentials)
-            receipts.append(report)
+            record(report, cycle)
             if report["status"] != "passed":
                 verdict = "worker-failed"
                 break
         report = _execute("tests", policy, workspace, storage, sha,
                           allow_credentials=allow_credentials)
-        receipts.append(report)
+        record(report, cycle)
         if report["status"] != "passed":
             verdict = "tests-failed"
             break
@@ -744,7 +825,7 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                 break
             report = _execute("adversarial", policy, workspace, storage, sha,
                 prompt=message, allow_credentials=allow_credentials)
-            receipts.append(report)
+            record(report, cycle)
             if report["workspace_modified"]:
                 verdict = "review-mutated-source"
                 break
@@ -783,7 +864,7 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
             if policy["modules"][name]:
                 result = _execute(name, policy, workspace, storage, sha,
                                   allow_credentials=allow_credentials)
-                receipts.append(result)
+                record(result, cycle)
                 if result["status"] != "passed":
                     verdict = name + "-failed"
                     break
@@ -796,7 +877,10 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                 if policy["modules"]["shipping"] and not changed and
                    verdict in ("checks-executed-without-authenticated-verdict",
                                "reviewer-approved-claim") else None)
-    return {"source_sha": sha, "review_cycles": cycle, "verdict": verdict,
+    checkpoint = _save_checkpoint(storage, _checkpoint_data(
+        sha, starting_digest, final_digest, cycle, receipts, "complete", verdict))
+    return {"checkpoint_path": str(checkpoint),
+            "source_sha": sha, "review_cycles": cycle, "verdict": verdict,
             "original_workspace_digest": starting_digest,
             "current_workspace_digest": final_digest,
             "workspace_modified": changed,
@@ -809,12 +893,13 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("status", "plan", "run", "pipeline", "sensitivity",
+    parser.add_argument("action", choices=("status", "inspect-checkpoint", "plan", "run", "pipeline", "sensitivity",
                     "ship", "hook", "install-hooks", "uninstall-hooks"))
     parser.add_argument("stage", nargs="?", help="run stage or hook name")
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--policy", type=Path)
     parser.add_argument("--scratch", type=Path)
+    parser.add_argument("--checkpoint", type=Path)
     parser.add_argument("--expected-sha")
     parser.add_argument("--requirements", default="")
     parser.add_argument("--allow-execute", action="store_true")
@@ -826,6 +911,12 @@ def main() -> int:
     parser.add_argument("--test-path", action="append", default=[])
     args = parser.parse_args()
     try:
+        if args.action == "inspect-checkpoint":
+            if not args.checkpoint:
+                raise OpsError("Provide an explicit --checkpoint file")
+            print(json.dumps(inspect_checkpoint(args.checkpoint),
+                             indent=2, sort_keys=True))
+            return 0
         repo = args.repo.absolute()
         policy = load_policy(args.policy if args.policy else repo / ".freview-ops.json") if (
             args.policy or (repo / ".freview-ops.json").exists()
