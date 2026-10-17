@@ -2,6 +2,8 @@
 
 An evidence log, **not a list of software features or an endorsement of any agent report**.
 
+> **Current-state note (2026-10-17):** This table is a chronological archive. References to "draft", "unmerged", or an unfinished gate refer to the **historical checkpoint**, not today's branch or PR status. Feature PRs [#16–#20](https://github.com/raiseCatError/freview/pulls?q=is%3Apr+is%3Amerged), plus standardization PR [#21](https://github.com/raiseCatError/freview/pull/21), have now merged into `main`. The [final integrated main CI](https://github.com/raiseCatError/freview/actions/runs/39019711917) succeeded on Ubuntu and macOS. This does **not** retroactively turn any earlier partial audit into a completed live-agent or mutation-engine validation. See the [current documentation map](../README.md).
+
 | Audit | Observation | Scope and caveats |
 | --- | --- | --- |
 | [Historical freview-on-freview audit (draft PR #8)](https://github.com/raiseCatError/freview/pull/8) | AGY 1.4.0 / Gemini 3.8 Flash High | Full-mode native source review, verified local helper execution; **manual SKILL.md activation**, not native AGY injection; agent audit marked `partial-audit`. Preserve original baseline and later tested SHA. |

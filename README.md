@@ -10,11 +10,36 @@ freview is a portable, evidence-first [Agent Skill](https://agentskills.io/) for
 
 It produces a review, not a cleanup script. Default operations are **read-only**.
 
-> **Status:** Pre-release read-only preview for trusted repositories; **no version has been tagged or published**. Installation and native discovery depend on agent/runtime configuration. A Full review is not a security certification or physical-device verification.
+> **Status:** Usable from source; **pre-release, no version has been tagged or published**. Standard/Full repository audits are **read-only by default**; optional execution, mutation testing and repair workflows require separate explicit authorization. The bundled tests pass on Ubuntu/macOS, but native skill activation and real provider or mutation workloads must be checked in the target environment.
 
-**Integrated on `main`:** [evidence reconciliation #16](https://github.com/raiseCatError/freview/pull/16), [optional operations #17](https://github.com/raiseCatError/freview/pull/17), [structured adversarial verdicts #18](https://github.com/raiseCatError/freview/pull/18), [verification isolation #19](https://github.com/raiseCatError/freview/pull/19), and [mutation quality / bounded autonomy #20](https://github.com/raiseCatError/freview/pull/20). All five have been merged with their development history retained; [the integrated CI run](https://github.com/raiseCatError/freview/actions/runs/39019289770) passed on Ubuntu and macOS. **This is still pre-release:** real provider, mutation workload and physical-host acceptance are separate from synthetic CI.
+**Integrated on `main`:** evidence reconciliation, isolated operations, structured adversarial reviews, mutation scoring and bounded autonomy. All six development/standardization PRs [#16–#21](https://github.com/raiseCatError/freview/pulls?q=is%3Apr+is%3Amerged) are merged. [Final integration CI](https://github.com/raiseCatError/freview/actions/runs/39019711917) passed on Ubuntu and macOS. The implementation is **not** a production sandbox or a guarantee of correct agent reviews.
 
 **Dogfooding:** [final pre-release freview-on-freview review](docs/audits/2026-10-17-final-pre-release-self-review.md) · [historical original audit](docs/freview-reviews-freview.md). The newer source review is a bounded, hosted-evidence **partial-audit**, not native invocation in the author's agent session.
+
+## Quick start
+
+Install the skill into the coding-agent environment where you want to use it:
+
+```sh
+npx skills add raiseCatError/freview --skill freview
+```
+
+Open or reload your agent in the target repository, verify freview appears in its **native skill list**, then invoke `/freview` where the client supports that syntax, or ask for **“freview standard”**. The skill defaults to a **read-only Standard repository check**. `freview` here is an agent skill, **not a new shell executable**. Check your agent's specific discovery behavior in [Installation](#install) and the [acceptance checklist](docs/testing/agent-activation-acceptance.md).
+
+For an overview of documentation, configuration, optional mutation/autonomy and troubleshooting, see the [documentation index](docs/README.md).
+
+## Features at a glance
+
+| What you want | freview capability | Default behavior |
+| --- | --- | --- |
+| A factual repository health check | Quick / Standard: Git state, PRs/issues, release readiness, docs, CI and duplicate work items | **Read-only**, Standard |
+| A deeper source review | Full: examine implementation reachability, quality, tests and evidence gaps | Read-only; Full only when requested |
+| Check whether “done” is supported | Reconcile exact-SHA CI, requirements, claims and missing evidence | Claims never become proof automatically |
+| Compare automated review results | Bounded structured adversarial findings and repair stages | **Off** until explicitly configured |
+| Evaluate test strength | Optional Stryker/mutmut mutation reports and regression sensitivity | **Off**; optional quality gates |
+| Coordinate implementation | Bounded worker/reviewer loops and recovery checkpoints | **Off**; scratch copies, no automatic merge or release |
+
+Read the [mode guide](skills/freview/references/modes.md) for scope and the [operations guide](skills/freview/references/optional-ops.md) for explicit permissions. Optional execution in a scratch copy **does not** constitute an OS sandbox.
 
 ## Install
 
