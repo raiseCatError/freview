@@ -6,7 +6,7 @@
 
 A reviewer CLI returning exit code 0 is **not** approval. A successful reviewer stage now needs **one valid JSON object on standard output**, referencing the exact *original* source SHA and actual *disposable workspace* SHA-256 fingerprint supplied to the reviewer.
 
-The runner constructs its review prompt from **approved requirements and inspected workspace identity**, never from the worker's summary. Reviewers are instructed not to modify the workspace. If they do, the stage is rejected. A reviewer JSON claim does **not** prove separate identity, source reading, effective tests, or code correctness.
+The runner constructs its review prompt from **approved requirements and inspected workspace identity**, never from the worker's summary. Reviewers see a **fresh copy of the worker's current candidate**, not the mutable worker workspace. Source paths in a receipt must exist in that inspected copy; this verifies path existence, not real human/model source reading. A reviewer changing its own copy is blocked and cannot contaminate the next worker cycle. Reviewers are instructed not to modify the workspace. If they do, the stage is rejected. A reviewer JSON claim does **not** prove separate identity, source reading, effective tests, or code correctness.
 
 ## Reviewer output
 

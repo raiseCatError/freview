@@ -9,7 +9,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib.util
-import io
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -39,7 +38,6 @@ PROTECTED = ("main", "master", "develop", "release/*")
 FORWARDABLE_ENV = {"HOME", "XDG_CONFIG_HOME", "CODEX_HOME", "CLAUDE_CONFIG_DIR",
                    "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY"}
 SHA = re.compile(r"^[0-9a-f]{40}$")
-ID = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
 
 
 class OpsError(Exception):
@@ -273,40 +271,90 @@ def _extract_archive(repo: Path, root: Path, sha: str) -> Path:
 
 
 
-def _workspace_digest(root: Path) -> str:
-    """Fingerprint actual disposable files without claiming a Git commit SHA."""
-    checksum = hashlib.sha256()
-    total = 0
-    count = 0
+def _workspace_records(root: Path) -> dict[str, tuple[str, int, str]]:
+    """Bounded file and directory inventory, including mode and empty dirs.
+
+    Independent of traversal order and intentionally excludes access and
+    modification timestamps. This is not tamper-proof or a filesystem sandbox.
+    """
+    records: dict[str, tuple[str, int, str]] = {}
+    bytes_seen = 0
+    entries = 0
     for parent, directories, files in os.walk(root, followlinks=False):
         directories.sort()
         files.sort()
-        for name in directories + files:
-            item = Path(parent) / name
-            if item.is_symlink():
-                raise OpsError("Worker introduced a symlink into snapshot")
-            count += 1
-            if count > MAX_MEMBERS:
-                raise OpsError("Workspace fingerprint entry budget exceeded")
+        for name in directories:
+            entry = Path(parent) / name
+            mode = entry.lstat().st_mode
+            if not stat.S_ISDIR(mode):
+                raise OpsError("Unsafe directory entry in candidate workspace")
+            entries += 1
+            if entries > MAX_MEMBERS:
+                raise OpsError("Workspace entry budget exceeded")
+            rel = entry.relative_to(root).as_posix()
+            records["d/" + rel] = ("directory", stat.S_IMODE(mode), "")
         for name in files:
-            item = Path(parent) / name
-            if not item.is_file():
-                raise OpsError("Non-regular worker artifact")
-            relative = item.relative_to(root).as_posix()
-            checksum.update(relative.encode("utf-8", errors="surrogateescape"))
-            checksum.update(b"\0")
-            size = item.stat().st_size
-            total += size
-            if total > MAX_UNPACKED:
-                raise OpsError("Workspace fingerprint byte budget exceeded")
-            with item.open("rb") as handle:
+            entry = Path(parent) / name
+            mode = entry.lstat().st_mode
+            if not stat.S_ISREG(mode):
+                raise OpsError("Unsafe non-regular entry in candidate workspace")
+            entries += 1
+            if entries > MAX_MEMBERS:
+                raise OpsError("Workspace entry budget exceeded")
+            rel = entry.relative_to(root).as_posix()
+            bytes_seen += entry.stat(follow_symlinks=False).st_size
+            if bytes_seen > MAX_UNPACKED:
+                raise OpsError("Workspace byte budget exceeded")
+            digest = hashlib.sha256()
+            with entry.open("rb") as handle:
                 while True:
-                    block = handle.read(65536)
-                    if not block:
+                    chunk = handle.read(65536)
+                    if not chunk:
                         break
-                    checksum.update(block)
-            checksum.update(b"\0")
-    return checksum.hexdigest()
+                    digest.update(chunk)
+            records["f/" + rel] = ("file", stat.S_IMODE(mode), digest.hexdigest())
+    return records
+
+
+def _workspace_digest(root: Path) -> str:
+    """SHA256 identity for bounded workspace contents, names and permissions."""
+    records = _workspace_records(root)
+    digest = hashlib.sha256()
+    for name, value in sorted(records.items()):
+        digest.update(json.dumps([name, *value], ensure_ascii=True,
+                                 separators=(",", ":")).encode("ascii"))
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def _verification_copy(candidate: Path, storage: Path, stage: str,
+                       cycle: int) -> Path:
+    """Clone candidate into a separate private scratch workspace for one gate."""
+    if stage not in ("tests", "adversarial", "mutation", "regression"):
+        raise OpsError("Only verification stages may clone a candidate")
+    # Before copy: detect already-unsafe entries instead of dereferencing them.
+    baseline = _workspace_digest(candidate)
+    run = Path(tempfile.mkdtemp(prefix=f"verify-{cycle}-{stage}-", dir=storage))
+    target = run / "work"
+    try:
+        shutil.copytree(candidate, target, symlinks=True)
+        if _workspace_digest(target) != baseline:
+            raise OpsError("Verification snapshot does not match candidate")
+        return target
+    except Exception:
+        shutil.rmtree(run, ignore_errors=True)
+        raise
+
+
+def _original_entries_changed(candidate: Path, verifier: Path) -> bool:
+    """Do previously existing source entries differ after a verifier ran?
+
+    Added test caches and reports are not implementation changes. Modified,
+    deleted or permission-changed candidate entries are suspicious.
+    """
+    before = _workspace_records(candidate)
+    after = _workspace_records(verifier)
+    return any(after.get(name) != identity for name, identity in before.items())
 
 
 def _execute(stage: str, policy: dict, workspace: Path, storage: Path, sha: str,
@@ -617,7 +665,13 @@ def _checkpoint_data(sha: str, initial_digest: str, current_digest: str,
             "stage": item["stage"], "status": item["status"],
             "exit_code": item["exit_code"], "log_path": item["log_path"],
             "output_truncated": item["output_truncated"],
-            "workspace_digest_after": item["workspace_digest_after"]
+            "workspace_digest_after": item["workspace_digest_after"],
+            **({
+                "candidate_digest": item["candidate_digest"],
+                "verification_workspace": item["verification_workspace"],
+                "source_entries_modified": item["source_entries_modified"],
+                "candidate_modified_during_verification": item["candidate_modified_during_verification"],
+            } if "candidate_digest" in item else {})
         } for item in receipts],
         "untrusted_metadata": True, "resumes_execution": False,
         "attested": False,
@@ -695,8 +749,12 @@ def inspect_checkpoint(path: Path) -> dict:
         raise OpsError("Checkpoint contract invalid")
     receipt_keys = {"stage", "status", "exit_code", "log_path",
                     "output_truncated", "workspace_digest_after"}
+    verification_keys = {"candidate_digest", "verification_workspace",
+                         "source_entries_modified", "candidate_modified_during_verification"}
     for item in value["stage_receipts"]:
-        if (not isinstance(item, dict) or set(item) != receipt_keys or
+        if (not isinstance(item, dict) or
+                not receipt_keys.issubset(item) or
+                set(item) not in (receipt_keys, receipt_keys | verification_keys) or
                 not isinstance(item["stage"], str) or item["stage"] not in STAGES or
                 not isinstance(item["status"], str) or item["status"] not in
                     ("passed", "failed", "timeout", "output-limit") or
@@ -707,6 +765,14 @@ def inspect_checkpoint(path: Path) -> dict:
                 not isinstance(item["workspace_digest_after"], str) or
                 not re.fullmatch(r"[0-9a-f]{64}", item["workspace_digest_after"])):
             raise OpsError("Invalid checkpoint stage receipt")
+        if verification_keys.issubset(item):
+            if (not isinstance(item["candidate_digest"], str) or
+                    not re.fullmatch(r"[0-9a-f]{64}", item["candidate_digest"]) or
+                    not isinstance(item["verification_workspace"], str) or
+                    not 1 <= len(item["verification_workspace"]) <= 4096 or
+                    type(item["source_entries_modified"]) is not bool or
+                    type(item["candidate_modified_during_verification"]) is not bool):
+                raise OpsError("Invalid verification workspace provenance")
     # Syntactic consistency != authentic execution or tamper-proof metadata.
     return value
 
@@ -820,9 +886,23 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
         sha, starting_digest, starting_digest, 0, receipts, "in-progress", verdict))
     def record(receipt: dict, cycle_index: int) -> None:
         receipts.append(receipt)
+        # The canonical candidate is the worker's workspace, not a test
+        # runner's ephemeral cache directory or the reviewer's copy.
         _save_checkpoint(storage, _checkpoint_data(
-            sha, starting_digest, receipt["workspace_digest_after"],
+            sha, starting_digest, _workspace_digest(workspace),
             cycle_index, receipts, "in-progress", verdict))
+
+    def verify_stage(stage: str, cycle_index: int, *, prompt: str = "") -> dict:
+        digest = _workspace_digest(workspace)
+        verifier = _verification_copy(workspace, storage, stage, cycle_index)
+        report = _execute(stage, policy, verifier, verifier.parent, sha,
+                          prompt=prompt, allow_credentials=allow_credentials)
+        report["verification_workspace"] = str(verifier)
+        report["candidate_digest"] = digest
+        report["source_entries_modified"] = _original_entries_changed(workspace, verifier)
+        report["candidate_modified_during_verification"] = (
+            _workspace_digest(workspace) != digest)
+        return report
     final_review = None
     review_history = []
     worker_feedback = ""
@@ -844,9 +924,11 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
             if report["status"] != "passed":
                 verdict = "worker-failed"
                 break
-        report = _execute("tests", policy, workspace, storage, sha,
-                          allow_credentials=allow_credentials)
+        report = verify_stage("tests", cycle)
         record(report, cycle)
+        if report["candidate_modified_during_verification"] or report["source_entries_modified"]:
+            verdict = "tests-mutated-source"
+            break
         if report["status"] != "passed":
             verdict = "tests-failed"
             break
@@ -856,10 +938,9 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
             if len(message) > MAX_PROMPT:
                 verdict = "review-prompt-over-budget"
                 break
-            report = _execute("adversarial", policy, workspace, storage, sha,
-                prompt=message, allow_credentials=allow_credentials)
+            report = verify_stage("adversarial", cycle, prompt=message)
             record(report, cycle)
-            if report["workspace_modified"]:
+            if report["workspace_modified"] or report["candidate_modified_during_verification"]:
                 verdict = "review-mutated-source"
                 break
             if report["status"] != "passed":
@@ -867,7 +948,7 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                 break
             final_review = _review_verdict(report, expected_sha=sha,
                                            expected_digest=review_digest,
-                                           workspace=workspace)
+                                           workspace=Path(report["verification_workspace"]))
             review_history.append({
                 "cycle": cycle, "status": final_review["status"],
                 "finding_ids": [f["id"] for f in final_review["findings"]]
@@ -895,9 +976,14 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
     if verdict in ("checks-executed-without-authenticated-verdict", "reviewer-approved-claim"):
         for name in ("regression", "mutation"):
             if policy["modules"][name]:
-                result = _execute(name, policy, workspace, storage, sha,
-                                  allow_credentials=allow_credentials)
+                result = verify_stage(name, cycle)
                 record(result, cycle)
+                if result["candidate_modified_during_verification"]:
+                    verdict = name + "-modified-candidate"
+                    break
+                if name == "regression" and result["source_entries_modified"]:
+                    verdict = "regression-mutated-source"
+                    break
                 if result["status"] != "passed":
                     verdict = name + "-failed"
                     break
