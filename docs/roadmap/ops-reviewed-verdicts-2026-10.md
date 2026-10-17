@@ -23,20 +23,23 @@ Previous freview optional operations tested command/process exits but **did not 
 ### V0 — precise red tests
 - [x] Branch from exact PR #17 head.
 - [x] Commit durable plan before code.
-- [ ] Write tests that fail for missing/invalid JSON verdicts, mismatched SHA or fingerprint, unexpected approval with findings, reviewer mutating workspace, reviewer finding fed back to worker, no blind retry on process failure, cap at three.
-- [ ] Observe red exact-head GitHub CI for the contract.
+- [x] Write tests that fail for missing/invalid JSON verdicts, mismatched SHA or fingerprint, unexpected approval with findings, reviewer mutating workspace, reviewer finding fed back to worker, no blind retry on process failure, cap at three.
+- [x] Observe red exact-head GitHub CI for the contract.
 
 ### V1 — bounded verdict validator
-- [ ] Implement stdlib-only `review_verdict.py` with strict validator and schema-v1 description, no execution.
-- [ ] Verify unit tests plus full Ubuntu/macOS CI, checkpoint SHA.
+- [x] Implement stdlib-only `review_verdict.py` with strict validator and schema-v1 description, no execution.
+- [x] Verify unit tests plus full Ubuntu/macOS CI, checkpoint SHA.
 
 ### V2 — pipeline integration
-- [ ] Prompt review with original requirements + SHA + workspace digest; review verdict read from **bounded process stdout log**. Worker summary excluded.
-- [ ] Reject truncated output and same-workspace mutations; act on structured `changes_requested` only. Keep reviewer findings/response evidence referenced in records.
-- [ ] Tests run on updated scratch candidate after each fix cycle. Surface `reviewer-approved-claim` vs verified tests, not `proven correct`.
-- [ ] Verify full Ubuntu/macOS CI, checkpoint SHA.
+- [x] Prompt review with original requirements + SHA + workspace digest; review verdict read from **bounded process stdout log**. Worker summary excluded.
+- [x] Reject truncated output and same-workspace mutations; act on structured `changes_requested` only. Keep reviewer findings/response evidence referenced in records.
+- [x] Tests run on updated scratch candidate after each fix cycle. Surface `reviewer-approved-claim` vs verified tests, not `proven correct`.
+- [x] Verify full Ubuntu/macOS CI, checkpoint SHA.
 
-### V3 — self-review and privacy
+### V3 — durable evidence checkpoints and self-review
+- [ ] Test-first: every completed pipeline stage emits a bounded atomic recovery manifest in caller-selected scratch, and inspection is non-executing.
+- [ ] Never automatically resume, skip checks, or trust a checkpoint as attestation; missing/corrupt/oversized/symlinked checkpoints fail closed.
+- [ ] Implement stage checkpoint writer, inspection CLI, and verify synthetic fixture in Ubuntu/macOS.
 - [ ] Inspect changed source/test/docs for hidden edge cases and false-confidence outputs.
 - [ ] Optional reproducible offline fake-worker/fake-reviewer script (no token usage, no network) that exercises three-round loop and negative receipts.
 - [ ] Verify both GitHub CI runners at **final exact SHA**. Leave stacked PR draft, no merge, release or tagging.
@@ -56,3 +59,10 @@ Previous freview optional operations tested command/process exits but **did not 
 | V1 | pending | exact-head CI | not started |
 | V2 | pending | exact-head CI | not started |
 | V3 | pending | bounded source review + final CI | not started |
+
+## Checkpoint update (2026-10-17)
+
+- V0 intentionally red at `3a8d1cf4`: https://github.com/raiseCatError/freview/actions/runs/38995811988. Test specification preceded production validator.
+- V1 validator `review_verdict.py` added `02cc70ee`; pipeline integration `7856fac2`, then regression fixes `39a47790` and independent reviewed-file-path existence check `c48a0747`.
+- **V2 exact-head successful Ubuntu+macOS:** https://github.com/raiseCatError/freview/actions/runs/38996154454 at `c48a074706c814b48fc102ca32c58cb34569d7e1`. This is offline fake-reviewer CI, not real independent Claude/Codex/Opencode invocation.
+- Additional V3 checkpoint tests/implementation are next. Retain stacked draft PR #18. Any later CI must match its new exact head; prior success is not enough.
