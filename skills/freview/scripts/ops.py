@@ -34,6 +34,8 @@ MAX_MEMBERS = 4000
 MAX_PROMPT = 4000
 MARKER = "# FREVIEW-OPS-MANAGED:v1"
 PROTECTED = ("main", "master", "develop", "release/*")
+FORWARDABLE_ENV = {"HOME", "XDG_CONFIG_HOME", "CODEX_HOME", "CLAUDE_CONFIG_DIR",
+                   "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY"}
 SHA = re.compile(r"^[0-9a-f]{40}$")
 ID = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
 
@@ -43,7 +45,7 @@ class OpsError(Exception):
 
 
 def validate_policy(obj: object) -> dict:
-    if not isinstance(obj, dict) or set(obj) - {"schema_version", "modules", "commands", "limits"}:
+    if not isinstance(obj, dict) or set(obj) - {"schema_version", "modules", "commands", "limits", "pass_env"}:
         raise OpsError("Invalid or unknown policy fields")
     if type(obj.get("schema_version")) is not int or obj["schema_version"] != 1:
         raise OpsError("Unsupported policy version")
@@ -55,6 +57,10 @@ def validate_policy(obj: object) -> dict:
         if type(value) is not bool:
             raise OpsError("Module flags must be booleans")
         modules[name] = value
+    forward = obj.get("pass_env", [])
+    if (not isinstance(forward, list) or len(forward) != len(set(map(str, forward)))
+            or not all(isinstance(name, str) and name in FORWARDABLE_ENV for name in forward)):
+        raise OpsError("Invalid environment forwarding request")
     commands = obj.get("commands", {})
     if not isinstance(commands, dict) or set(commands) - set(STAGES):
         raise OpsError("Invalid command keys")
@@ -88,7 +94,7 @@ def validate_policy(obj: object) -> dict:
         if type(value) is not int or not minimum <= value <= maximum:
             raise OpsError("Invalid limit: " + key)
     return {"schema_version": 1, "modules": modules,
-            "commands": clean_commands, "limits": limits}
+            "commands": clean_commands, "limits": limits, "pass_env": forward}
 
 
 def load_policy(path: Path) -> dict:
@@ -113,7 +119,8 @@ def status(policy: dict) -> dict:
             "enabled": [key for key in MODULES if policy["modules"][key]],
             "disabled": [key for key in MODULES if not policy["modules"][key]],
             "limits": policy["limits"], "read_only_default": True,
-            "execution_requires_explicit_flag": True, "release_automation": False}
+            "execution_requires_explicit_flag": True, "release_automation": False,
+            "credentials_require_separate_flag": bool(policy.get("pass_env"))}
 
 
 def plan(policy: dict, requirements: str, sha: str) -> dict:
@@ -232,7 +239,7 @@ def _extract_archive(repo: Path, root: Path, sha: str) -> Path:
 
 
 def _execute(stage: str, policy: dict, workspace: Path, storage: Path, sha: str,
-             *, prompt: str = "") -> dict:
+             *, prompt: str = "", allow_credentials: bool = False) -> dict:
     if stage not in STAGES or not policy["modules"][stage]:
         raise OpsError("Stage disabled")
     argv = policy["commands"].get(stage)
@@ -248,6 +255,11 @@ def _execute(stage: str, policy: dict, workspace: Path, storage: Path, sha: str,
     deadline = begin + policy["limits"]["timeout_seconds"]
     env = {"PATH": os.environ.get("PATH", ""), "LANG": "C.UTF-8",
            "FREVIEW_OPS_STAGE": stage, "FREVIEW_SOURCE_SHA": sha}
+    if policy.get("pass_env") and not allow_credentials:
+        raise OpsError("Credential forwarding requires --allow-credentials")
+    if allow_credentials:
+        env.update({key: os.environ[key] for key in policy.get("pass_env", [])
+                    if key in os.environ})
     process = None
     captured = 0
     truncated = False
@@ -308,8 +320,8 @@ def _execute(stage: str, policy: dict, workspace: Path, storage: Path, sha: str,
 
 
 def run_stage(stage: str, policy: dict, repo: Path, scratch: Path,
-              *, allow_execute: bool = False, expected_sha: str | None = None,
-              prompt: str = "") -> dict:
+              *, allow_execute: bool = False, allow_credentials: bool = False,
+              expected_sha: str | None = None, prompt: str = "") -> dict:
     if stage not in STAGES or not policy["modules"].get(stage):
         raise OpsError("Stage not enabled")
     if not allow_execute:
@@ -320,7 +332,8 @@ def run_stage(stage: str, policy: dict, repo: Path, scratch: Path,
     if expected_sha is not None and sha != expected_sha:
         raise OpsError("Expected exact SHA differs from HEAD")
     workspace = _extract_archive(repo, root, sha)
-    return _execute(stage, policy, workspace, workspace.parent, sha, prompt=prompt)
+    return _execute(stage, policy, workspace, workspace.parent, sha,
+                    prompt=prompt, allow_credentials=allow_credentials)
 
 
 def hook_allowed(kind: str, policy: dict, *, branch: str,
@@ -428,7 +441,7 @@ def uninstall_hooks(repo: Path) -> list[str]:
 
 
 def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
-             expected_sha=None, requirements="", rounds=None) -> dict:
+             allow_credentials=False, expected_sha=None, requirements="", rounds=None) -> dict:
     if not allow_execute:
         raise OpsError("Pipeline requires explicit execution approval")
     repo = Path(repo)
@@ -452,13 +465,15 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
     for cycle in range(1, rounds + 1):
         if policy["modules"]["implementation"]:
             report = _execute("implementation", policy, workspace, storage, sha,
-                              prompt="Implement approved requirements with tests first:\n" + requirements)
+                              prompt="Implement approved requirements with tests first:\n" + requirements,
+                              allow_credentials=allow_credentials)
             receipts.append(report)
             if report["status"] != "passed":
                 verdict = "worker-failed"
                 break
         if policy["modules"]["tests"]:
-            report = _execute("tests", policy, workspace, storage, sha)
+            report = _execute("tests", policy, workspace, storage, sha,
+                              allow_credentials=allow_credentials)
             receipts.append(report)
             if report["status"] != "passed":
                 verdict = "tests-failed"
@@ -466,7 +481,8 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
         if policy["modules"]["adversarial"]:
             report = _execute("adversarial", policy, workspace, storage, sha,
                 prompt="Independent audit: inspect requirements, source, tests and skipped cases. "
-                       "Do not read worker summary. Inspect test quality and evidence.\n" + requirements)
+                       "Do not read worker summary. Inspect test quality and evidence.\n" + requirements,
+                allow_credentials=allow_credentials)
             receipts.append(report)
             if report["status"] != "passed":
                 verdict = "review-process-failed"
@@ -476,7 +492,8 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
     if verdict == "checks-executed-without-authenticated-verdict":
         for name in ("regression", "mutation"):
             if policy["modules"][name]:
-                result = _execute(name, policy, workspace, storage, sha)
+                result = _execute(name, policy, workspace, storage, sha,
+                                  allow_credentials=allow_credentials)
                 receipts.append(result)
                 if result["status"] != "passed":
                     verdict = name + "-failed"
@@ -502,6 +519,7 @@ def main() -> int:
     parser.add_argument("--expected-sha")
     parser.add_argument("--requirements", default="")
     parser.add_argument("--allow-execute", action="store_true")
+    parser.add_argument("--allow-credentials", action="store_true")
     parser.add_argument("--allow-install", action="store_true")
     parser.add_argument("--verified", action="store_true")
     parser.add_argument("--rounds", type=int)
@@ -519,13 +537,16 @@ def main() -> int:
             if not args.scratch:
                 raise OpsError("Explicit --scratch required")
             result = run_stage(args.stage or "", policy, repo, args.scratch,
-                               allow_execute=args.allow_execute, expected_sha=args.expected_sha,
+                               allow_execute=args.allow_execute, allow_credentials=args.allow_credentials,
+                               expected_sha=args.expected_sha,
                                prompt=args.requirements)
         elif args.action == "pipeline":
             if not args.scratch:
                 raise OpsError("Explicit --scratch required")
             result = pipeline(policy, repo, args.scratch,
-                              allow_execute=args.allow_execute, expected_sha=args.expected_sha,
+                              allow_execute=args.allow_execute,
+                              allow_credentials=args.allow_credentials,
+                              expected_sha=args.expected_sha,
                               requirements=args.requirements, rounds=args.rounds)
         elif args.action == "ship":
             result = ship_plan(policy, repo, verified=args.verified)
