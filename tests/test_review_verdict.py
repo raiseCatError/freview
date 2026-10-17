@@ -178,7 +178,7 @@ class PipelineContractTests(unittest.TestCase):
         worker = (
           "import sys;from pathlib import Path;"
           "p=sys.stdin.read();"
-          "Path('src/guard.py').write_text('fixed') if 'R1: Missing guard' in p else None"
+          "Path('src/guard.py').write_text('fixed') if 'R1' in p else None"
         )
         reviewer = (
           "import sys,json,re;"
@@ -212,10 +212,13 @@ class PipelineContractTests(unittest.TestCase):
           "description='Missing guard',evidence='No guard')],"
           "reviewed_paths=['src/module.py'],reason='not ready')))"
         )
-        result = self.run_pipeline(self.policy(reviewer))
+        result = self.run_pipeline(self.policy(reviewer, worker="pass"))
         self.assertEqual(result["review_cycles"], 3)
         self.assertEqual(result["verdict"], "changes-requested")
         self.assertIsNone(result["shipping"])
+        unrepairable = self.run_pipeline(self.policy(reviewer))
+        self.assertEqual(unrepairable["review_cycles"], 1)
+        self.assertEqual(unrepairable["verdict"], "changes-requested")
 
 
 if __name__ == "__main__":
