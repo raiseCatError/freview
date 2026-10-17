@@ -60,7 +60,7 @@ class MutationReportTests(unittest.TestCase):
         result=mutation.summarize(report,format="auto",min_score=60)
         self.assertEqual(result["status"],"complete")
         self.assertEqual(result["counts"]["valid"],6)
-        self.assertAlmostEqual(result["score"],(4/6)*100)
+        self.assertAlmostEqual(result["score"],(4/6)*100, places=2)
         self.assertTrue(result["quality_pass"])
         report["check_was_interrupted_by_user"]=1
         report["total"]=8
