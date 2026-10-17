@@ -1,5 +1,6 @@
 """Tests for the non-executing verification receipt consistency checker."""
 import importlib.util
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -84,6 +85,17 @@ class ReceiptTests(unittest.TestCase):
                                capture_output=True, text=True, timeout=20)
             self.assertEqual(p.returncode, 2)
             self.assertNotIn(str(path), p.stdout)
+
+    def test_fifo_receipt_is_rejected_without_blocking(self):
+        if not hasattr(os, "mkfifo"):
+            self.skipTest("FIFO unavailable")
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "receipt.fifo"
+            os.mkfifo(path)
+            p = subprocess.run([sys.executable, str(MODULE), str(path)],
+                               capture_output=True, text=True, timeout=10)
+            self.assertEqual(p.returncode, 2)
+            self.assertIn("unreadable-or-invalid-receipt", p.stdout)
 
     def test_schema_version_bool_not_accepted(self):
         receipt = sample()
