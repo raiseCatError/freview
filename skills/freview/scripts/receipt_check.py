@@ -112,7 +112,8 @@ def main() -> int:
     parser.add_argument("--expected-sha", help="exact lowercase 40-character Git SHA")
     args = parser.parse_args()
     try:
-        flags = os.O_RDONLY
+        # O_NONBLOCK prevents a FIFO from hanging before fstat rejects it.
+        flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)
         if hasattr(os, "O_NOFOLLOW"):
             flags |= os.O_NOFOLLOW
         if args.receipt.is_symlink():
