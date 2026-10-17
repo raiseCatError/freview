@@ -93,6 +93,27 @@ class CheckpointTests(unittest.TestCase):
         with self.assertRaises(ops.OpsError):
             ops.inspect_checkpoint(file)
 
+    def test_forged_checkpoint_sha_digest_or_stage_is_rejected(self):
+        result = ops.pipeline(self.policy(), self.repo, self.scratch,
+                              allow_execute=True, expected_sha=self.sha,
+                              requirements="Proof of original requirements")
+        file = Path(result["checkpoint_path"])
+        clean = json.loads(file.read_text())
+        for changed in (
+            {"source_sha": "wrong"},
+            {"current_workspace_digest": "not-a-digest"},
+            {"cycle": 99},
+            {"stage_receipts": [{"stage": "fictional", "status": "passed"}]},
+            {"attested": True},
+            {"resumes_execution": True},
+        ):
+            with self.subTest(changed=changed):
+                forged = dict(clean)
+                forged.update(changed)
+                file.write_text(json.dumps(forged))
+                with self.assertRaises(ops.OpsError):
+                    ops.inspect_checkpoint(file)
+
     def test_status_cli_does_not_create_scratch_or_execute_tests(self):
         output = subprocess.run([sys.executable, str(SCRIPT), "status",
                                  "--repo", str(self.repo)],
