@@ -301,7 +301,8 @@ def _execute(stage: str, policy: dict, workspace: Path, storage: Path, sha: str,
         with logfile.open("xb") as output:
             process = subprocess.Popen(argv, cwd=workspace, env=env,
                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                       stderr=subprocess.STDOUT)
+                                       stderr=subprocess.STDOUT,
+                                       start_new_session=True)
             process.stdin.write(prompt.encode("utf-8"))
             process.stdin.close()
             with selectors.DefaultSelector() as selector:
@@ -329,11 +330,17 @@ def _execute(stage: str, policy: dict, workspace: Path, storage: Path, sha: str,
                     if truncated:
                         break
             if timed_out or truncated:
-                process.kill()
+                try:
+                    os.killpg(process.pid, 9)
+                except OSError:
+                    process.kill()
             try:
                 process.wait(timeout=2)
             except subprocess.TimeoutExpired:
-                process.kill()
+                try:
+                    os.killpg(process.pid, 9)
+                except OSError:
+                    process.kill()
                 process.wait(timeout=2)
         state = ("timeout" if timed_out else "output-limit" if truncated else
                  "passed" if process.returncode == 0 else "failed")
@@ -345,7 +352,10 @@ def _execute(stage: str, policy: dict, workspace: Path, storage: Path, sha: str,
                 "reviewer_independence_verified": False, "network_isolation": False}
     except (OSError, BrokenPipeError, ValueError):
         if process is not None and process.poll() is None:
-            process.kill()
+            try:
+                os.killpg(process.pid, 9)
+            except OSError:
+                process.kill()
             process.wait()
         raise OpsError("Configured executable unavailable or output unwritable") from None
 
