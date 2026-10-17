@@ -23,7 +23,7 @@ def sample(actor="worker", code=0):
 class ReceiptTests(unittest.TestCase):
     def test_consistent_receipt_never_claims_verification(self):
         result = receipts.validate(sample(), expected_sha=SHA_A)
-        self.assertEqual(result["status"], "recorded-only")
+        self.assertEqual(result["status"], "claimed-evidence")
         self.assertFalse(result["provenance_verified"])
         self.assertEqual(result["errors"], [])
 
@@ -35,21 +35,24 @@ class ReceiptTests(unittest.TestCase):
         result = receipts.validate(sample(code=1))
         self.assertIn("check-0:nonzero-exit", result["warnings"])
         self.assertFalse(result["provenance_verified"])
+        self.assertEqual(result["status"], "failed")
 
     def test_sha_mismatch(self):
         receipt = sample()
         receipt["checks"][0]["sha"] = SHA_B
-        self.assertEqual(receipts.validate(receipt)["status"], "invalid")
+        self.assertEqual(receipts.validate(receipt)["status"], "contradictory")
         self.assertIn("check-0:mismatched-check-sha",
                       receipts.validate(receipt)["errors"])
         self.assertIn("unexpected-head-sha",
                       receipts.validate(sample(), expected_sha=SHA_B)["errors"])
+        self.assertEqual(receipts.validate(sample(), expected_sha=SHA_B)["status"], "contradictory")
 
     def test_empty_evidence_is_flagged(self):
         receipt = sample()
         receipt["checks"][0]["evidence"] = []
         result = receipts.validate(receipt)
         self.assertIn("check-0:no-artifact-or-run-reference", result["warnings"])
+        self.assertEqual(result["status"], "incomplete")
 
     def test_reject_invalid_claims_and_overflow(self):
         self.assertEqual(receipts.validate([])["status"], "invalid")
