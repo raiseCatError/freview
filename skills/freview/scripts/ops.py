@@ -572,6 +572,8 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
         raise OpsError("Invalid review round budget")
     if len(requirements) > MAX_PROMPT:
         raise OpsError("Requirements over budget")
+    if not policy["modules"]["tests"]:
+        raise OpsError("Pipeline requires an enabled, configured test gate")
     if policy["modules"]["implementation"] and not policy["modules"]["tests"]:
         raise OpsError("Autonomous implementation must have tests enabled")
     if policy["modules"]["shipping"] and not policy["modules"]["tests"]:
