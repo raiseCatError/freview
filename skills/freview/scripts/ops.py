@@ -269,6 +269,43 @@ def _extract_archive(repo: Path, root: Path, sha: str) -> Path:
         raise
 
 
+
+def _workspace_digest(root: Path) -> str:
+    """Fingerprint actual disposable files without claiming a Git commit SHA."""
+    checksum = hashlib.sha256()
+    total = 0
+    count = 0
+    for parent, directories, files in os.walk(root, followlinks=False):
+        directories.sort()
+        files.sort()
+        for name in directories + files:
+            item = Path(parent) / name
+            if item.is_symlink():
+                raise OpsError("Worker introduced a symlink into snapshot")
+            count += 1
+            if count > MAX_MEMBERS:
+                raise OpsError("Workspace fingerprint entry budget exceeded")
+        for name in files:
+            item = Path(parent) / name
+            if not item.is_file():
+                raise OpsError("Non-regular worker artifact")
+            relative = item.relative_to(root).as_posix()
+            checksum.update(relative.encode("utf-8", errors="surrogateescape"))
+            checksum.update(b"\0")
+            size = item.stat().st_size
+            total += size
+            if total > MAX_UNPACKED:
+                raise OpsError("Workspace fingerprint byte budget exceeded")
+            with item.open("rb") as handle:
+                while True:
+                    block = handle.read(65536)
+                    if not block:
+                        break
+                    checksum.update(block)
+            checksum.update(b"\0")
+    return checksum.hexdigest()
+
+
 def _execute(stage: str, policy: dict, workspace: Path, storage: Path, sha: str,
              *, prompt: str = "", allow_credentials: bool = False) -> dict:
     if stage not in STAGES or not policy["modules"][stage]:
@@ -283,6 +320,7 @@ def _execute(stage: str, policy: dict, workspace: Path, storage: Path, sha: str,
     cap = policy["limits"]["max_output_bytes"]
     logfile = storage / (stage + "-" + str(time.time_ns()) + ".log")
     begin = time.monotonic()
+    fingerprint_before = _workspace_digest(workspace)
     deadline = begin + policy["limits"]["timeout_seconds"]
     env = {"PATH": os.environ.get("PATH", ""), "LANG": "C.UTF-8",
            "FREVIEW_OPS_STAGE": stage, "FREVIEW_SOURCE_SHA": sha}
@@ -342,9 +380,14 @@ def _execute(stage: str, policy: dict, workspace: Path, storage: Path, sha: str,
                 except OSError:
                     process.kill()
                 process.wait(timeout=2)
+        fingerprint_after = _workspace_digest(workspace)
         state = ("timeout" if timed_out else "output-limit" if truncated else
                  "passed" if process.returncode == 0 else "failed")
         return {"stage": stage, "status": state, "sha": sha,
+                "source_sha_only": True,
+                "workspace_digest_before": fingerprint_before,
+                "workspace_digest_after": fingerprint_after,
+                "workspace_modified": fingerprint_before != fingerprint_after,
                 "exit_code": process.returncode,
                 "elapsed_seconds": round(time.monotonic() - begin, 3),
                 "log_path": str(logfile), "output_truncated": truncated,
@@ -588,6 +631,7 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
     generated_plan = plan(policy, requirements, sha) if (policy["modules"]["planning"]
                   and policy["modules"]["specs"]) else None
     workspace = _extract_archive(repo, root, sha)
+    starting_digest = _workspace_digest(workspace)
     storage = workspace.parent
     receipts = []
     verdict = "unverified"
@@ -635,10 +679,17 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                 if result["status"] != "passed":
                     verdict = name + "-failed"
                     break
+    final_digest = _workspace_digest(workspace)
+    changed = final_digest != starting_digest
+    if changed and verdict == "checks-executed-without-authenticated-verdict":
+        verdict = "implementation-not-integrated"
     shipping = (ship_plan(policy, repo, verified=True)
-                if policy["modules"]["shipping"] and
+                if policy["modules"]["shipping"] and not changed and
                    verdict == "checks-executed-without-authenticated-verdict" else None)
     return {"source_sha": sha, "review_cycles": cycle, "verdict": verdict,
+            "original_workspace_digest": starting_digest,
+            "current_workspace_digest": final_digest,
+            "workspace_modified": changed,
             "plan": generated_plan, "shipping": shipping,
             "executions": receipts, "scratch_workspace": str(workspace),
             "independent_success_authenticated": False,
