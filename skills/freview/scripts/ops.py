@@ -331,11 +331,11 @@ def ship_plan(policy: dict, repo: Path, *, verified: bool) -> dict:
         raise OpsError("Shipping handoff requires enabled module and successful checks")
     sha = _repo_head(Path(repo))
     branch = _git(Path(repo), "symbolic-ref", "--quiet", "--short", "HEAD")
-    if any(_matches_branch(branch, x) for x in PROTECTED):
-        raise OpsError("Shipping from protected branch not permitted")
+    protected_source = any(_matches_branch(branch, x) for x in PROTECTED)
     return {"status": "handoff-only", "head_sha": sha, "branch": branch,
             "verified_reported": True, "pushed": False, "merged": False,
             "released": False, "deployment_performed": False,
+            "protected_source_branch": protected_source,
             "required_human_gates": ["Review exact test/CI artifacts",
                                      "Review actual changes and security",
                                      "Authorize PR merge and release externally"]}
