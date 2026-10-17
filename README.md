@@ -95,7 +95,7 @@ python3 -I skills/freview/scripts/ops.py plan --repo . --requirements "Desired b
 # See the full guide for --scratch, --expected-sha and --allow-execute.
 ```
 
-The helper runs explicitly configured test/agent programs in a **disposable committed-tree snapshot**, not the original checkout. This is isolation of files, **not a secure OS sandbox**. Real Claude/Codex tokens/accounts, native agent activation, mutation scores, correctness, real release authorization and cross-agent independence remain separately verifiable and are **not** certified by synthetic CI fixtures. Shipping is a handoff, not an automated push, merge or deployment. [Design and recovery journal](docs/roadmap/optional-ops-2026-10.md).
+The helper runs explicitly configured test/agent programs in a **disposable committed-tree snapshot**, not the original checkout. This is isolation of files, **not a secure OS sandbox**. Real Claude/Codex tokens/accounts, native agent activation, mutation scores, correctness, real release authorization and cross-agent independence remain separately verifiable and are **not** certified by synthetic CI fixtures. When a worker modifies the disposable source snapshot, freview records its workspace fingerprint and **blocks the shipping handoff until those edits are integrated and independently checked**. Shipping is a handoff, not an automated push, merge or deployment. [Design and recovery journal](docs/roadmap/optional-ops-2026-10.md).
 
 ## Review modes
 
