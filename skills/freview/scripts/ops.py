@@ -882,6 +882,20 @@ def _review_feedback(findings: list[dict]) -> str:
     )
 
 
+def _mutation_report_summary(verifier: Path, options: dict) -> dict:
+    """Inspect only a bounded report in the actual mutation-stage workspace."""
+    spec = importlib.util.spec_from_file_location(
+        "freview_mutation_quality", Path(__file__).with_name("mutation_report.py"))
+    if spec is None or spec.loader is None:
+        raise OpsError("Mutation parser unavailable")
+    parser = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(parser)
+    return parser.inspect_workspace(
+        verifier, format=options["format"], min_score=options["min_score"],
+        min_valid_mutants=options["min_valid_mutants"],
+        max_survivors=options["max_survivors"])
+
+
 def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
              allow_credentials=False, expected_sha=None, requirements="", rounds=None) -> dict:
     if not allow_execute:
@@ -935,10 +949,19 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
             _workspace_digest(workspace) != digest)
         return report
     final_review = None
+    mutation_quality = None
     review_history = []
     worker_feedback = ""
+    last_finding_signature = None
+    repeated_findings = 0
+    autonomy = policy["autonomy"]
+    def budget_available() -> bool:
+        return len(receipts) < autonomy["max_stage_runs"]
     for cycle in range(1, rounds + 1):
         if policy["modules"]["planning"] and "planning" in policy["commands"]:
+            if not budget_available():
+                verdict = "budget-exhausted"
+                break
             report = _execute("planning", policy, workspace, storage, sha,
                 prompt="Produce a short implementation plan and acceptance tests:\n" + requirements,
                 allow_credentials=allow_credentials)
@@ -947,6 +970,10 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                 verdict = "planning-process-failed"
                 break
         if policy["modules"]["implementation"]:
+            if not budget_available():
+                verdict = "budget-exhausted"
+                break
+            worker_before = _workspace_digest(workspace)
             report = _execute("implementation", policy, workspace, storage, sha,
                 prompt=("Implement approved requirements with tests first:\n" +
                         requirements + worker_feedback),
@@ -955,6 +982,13 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
             if report["status"] != "passed":
                 verdict = "worker-failed"
                 break
+            if (worker_feedback and autonomy["stop_on_no_progress"] and
+                    _workspace_digest(workspace) == worker_before):
+                verdict = "no-progress"
+                break
+        if not budget_available():
+            verdict = "budget-exhausted"
+            break
         report = verify_stage("tests", cycle)
         record(report, cycle)
         if report["candidate_modified_during_verification"] or report["source_entries_modified"]:
@@ -968,6 +1002,9 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
             message = _review_prompt(requirements, sha, review_digest)
             if len(message) > MAX_PROMPT:
                 verdict = "review-prompt-over-budget"
+                break
+            if not budget_available():
+                verdict = "budget-exhausted"
                 break
             report = verify_stage("adversarial", cycle, prompt=message)
             record(report, cycle)
@@ -992,6 +1029,17 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                 break
             if final_review["status"] == "changes-requested":
                 verdict = "changes-requested"
+                signature = tuple(sorted((
+                    f["id"], f["path"], f["description"], f["evidence"]
+                ) for f in final_review["findings"]))
+                if signature == last_finding_signature:
+                    repeated_findings += 1
+                else:
+                    repeated_findings = 0
+                last_finding_signature = signature
+                if repeated_findings >= autonomy["max_repeated_findings"]:
+                    verdict = "stalled-review-findings"
+                    break
                 if cycle == rounds or not policy["modules"]["implementation"]:
                     break
                 try:
@@ -1007,7 +1055,19 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
     if verdict in ("checks-executed-without-authenticated-verdict", "reviewer-approved-claim"):
         for name in ("regression", "mutation"):
             if policy["modules"][name]:
+                if not budget_available():
+                    verdict = "budget-exhausted"
+                    break
                 result = verify_stage(name, cycle)
+                if name == "mutation" and result["status"] == "passed":
+                    mutation_quality = _mutation_report_summary(
+                        Path(result["verification_workspace"]),
+                        policy["mutation_quality"])
+                    result["mutation_quality"] = {
+                        "status": mutation_quality["status"],
+                        "score": mutation_quality.get("score"),
+                        "quality_pass": mutation_quality["quality_pass"],
+                        "counts": mutation_quality["counts"]}
                 record(result, cycle)
                 if result["candidate_modified_during_verification"]:
                     verdict = name + "-modified-candidate"
@@ -1018,11 +1078,26 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                 if result["status"] != "passed":
                     verdict = name + "-failed"
                     break
+                if name == "mutation":
+                    if mutation_quality is None or mutation_quality["status"] != "complete":
+                        verdict = "mutation-inconclusive"
+                        break
+                    if (policy["mutation_quality"]["mode"] == "gate" and
+                            not mutation_quality["quality_pass"]):
+                        verdict = "mutation-threshold-failed"
+                        break
     final_digest = _workspace_digest(workspace)
     changed = final_digest != starting_digest
     if changed and verdict in ("checks-executed-without-authenticated-verdict",
                                "reviewer-approved-claim"):
         verdict = "implementation-not-integrated"
+    if (autonomy["require_mutation_for_shipping"] and
+            policy["modules"]["shipping"] and
+            (not policy["modules"]["mutation"] or mutation_quality is None or
+             not mutation_quality["quality_pass"]) and
+            verdict in ("checks-executed-without-authenticated-verdict",
+                        "reviewer-approved-claim")):
+        verdict = "mutation-required"
     shipping = (ship_plan(policy, repo, verified=True)
                 if policy["modules"]["shipping"] and not changed and
                    verdict in ("checks-executed-without-authenticated-verdict",
@@ -1035,6 +1110,8 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
             "current_workspace_digest": final_digest,
             "workspace_modified": changed,
             "plan": generated_plan, "shipping": shipping,
+            "mutation_quality": mutation_quality,
+            "stage_runs": len(receipts), "stage_run_budget": autonomy["max_stage_runs"],
             "review": final_review, "review_history": review_history,
             "executions": receipts, "scratch_workspace": str(workspace),
             "independent_success_authenticated": False,
