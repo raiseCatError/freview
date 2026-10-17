@@ -273,40 +273,90 @@ def _extract_archive(repo: Path, root: Path, sha: str) -> Path:
 
 
 
-def _workspace_digest(root: Path) -> str:
-    """Fingerprint actual disposable files without claiming a Git commit SHA."""
-    checksum = hashlib.sha256()
-    total = 0
-    count = 0
+def _workspace_records(root: Path) -> dict[str, tuple[str, int, str]]:
+    """Bounded file and directory inventory, including mode and empty dirs.
+
+    Independent of traversal order and intentionally excludes access and
+    modification timestamps. This is not tamper-proof or a filesystem sandbox.
+    """
+    records: dict[str, tuple[str, int, str]] = {}
+    bytes_seen = 0
+    entries = 0
     for parent, directories, files in os.walk(root, followlinks=False):
         directories.sort()
         files.sort()
-        for name in directories + files:
-            item = Path(parent) / name
-            if item.is_symlink():
-                raise OpsError("Worker introduced a symlink into snapshot")
-            count += 1
-            if count > MAX_MEMBERS:
-                raise OpsError("Workspace fingerprint entry budget exceeded")
+        for name in directories:
+            entry = Path(parent) / name
+            mode = entry.lstat().st_mode
+            if not stat.S_ISDIR(mode):
+                raise OpsError("Unsafe directory entry in candidate workspace")
+            entries += 1
+            if entries > MAX_MEMBERS:
+                raise OpsError("Workspace entry budget exceeded")
+            rel = entry.relative_to(root).as_posix()
+            records["d/" + rel] = ("directory", stat.S_IMODE(mode), "")
         for name in files:
-            item = Path(parent) / name
-            if not item.is_file():
-                raise OpsError("Non-regular worker artifact")
-            relative = item.relative_to(root).as_posix()
-            checksum.update(relative.encode("utf-8", errors="surrogateescape"))
-            checksum.update(b"\0")
-            size = item.stat().st_size
-            total += size
-            if total > MAX_UNPACKED:
-                raise OpsError("Workspace fingerprint byte budget exceeded")
-            with item.open("rb") as handle:
+            entry = Path(parent) / name
+            mode = entry.lstat().st_mode
+            if not stat.S_ISREG(mode):
+                raise OpsError("Unsafe non-regular entry in candidate workspace")
+            entries += 1
+            if entries > MAX_MEMBERS:
+                raise OpsError("Workspace entry budget exceeded")
+            rel = entry.relative_to(root).as_posix()
+            bytes_seen += entry.stat(follow_symlinks=False).st_size
+            if bytes_seen > MAX_UNPACKED:
+                raise OpsError("Workspace byte budget exceeded")
+            digest = hashlib.sha256()
+            with entry.open("rb") as handle:
                 while True:
-                    block = handle.read(65536)
-                    if not block:
+                    chunk = handle.read(65536)
+                    if not chunk:
                         break
-                    checksum.update(block)
-            checksum.update(b"\0")
-    return checksum.hexdigest()
+                    digest.update(chunk)
+            records["f/" + rel] = ("file", stat.S_IMODE(mode), digest.hexdigest())
+    return records
+
+
+def _workspace_digest(root: Path) -> str:
+    """SHA256 identity for bounded workspace contents, names and permissions."""
+    records = _workspace_records(root)
+    digest = hashlib.sha256()
+    for name, value in sorted(records.items()):
+        digest.update(json.dumps([name, *value], ensure_ascii=True,
+                                 separators=(",", ":")).encode("ascii"))
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def _verification_copy(candidate: Path, storage: Path, stage: str,
+                       cycle: int) -> Path:
+    """Clone candidate into a separate private scratch workspace for one gate."""
+    if stage not in ("tests", "adversarial", "mutation", "regression"):
+        raise OpsError("Only verification stages may clone a candidate")
+    # Before copy: detect already-unsafe entries instead of dereferencing them.
+    baseline = _workspace_digest(candidate)
+    run = Path(tempfile.mkdtemp(prefix=f"verify-{cycle}-{stage}-", dir=storage))
+    target = run / "work"
+    try:
+        shutil.copytree(candidate, target, symlinks=True)
+        if _workspace_digest(target) != baseline:
+            raise OpsError("Verification snapshot does not match candidate")
+        return target
+    except Exception:
+        shutil.rmtree(run, ignore_errors=True)
+        raise
+
+
+def _original_entries_changed(candidate: Path, verifier: Path) -> bool:
+    """Do previously existing source entries differ after a verifier ran?
+
+    Added test caches and reports are not implementation changes. Modified,
+    deleted or permission-changed candidate entries are suspicious.
+    """
+    before = _workspace_records(candidate)
+    after = _workspace_records(verifier)
+    return any(after.get(name) != identity for name, identity in before.items())
 
 
 def _execute(stage: str, policy: dict, workspace: Path, storage: Path, sha: str,
