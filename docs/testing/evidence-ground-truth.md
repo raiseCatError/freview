@@ -5,7 +5,7 @@
 ## How to reproduce
 
 ```sh
-python3 -m unittest tests/test_adversarial_scenarios.py -v
+python3 -m unittest discover -s tests -p 'test_adversarial_scenarios.py' -v
 # Portable full suite (also CI):
 python3 -m unittest discover -s tests -v
 ```
