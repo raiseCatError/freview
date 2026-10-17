@@ -62,7 +62,7 @@ def validate(receipt: object, *, expected_sha: str | None = None) -> dict:
         else:
             seen.add(identifier)
         actor = item.get("actor")
-        if actor not in KINDS:
+        if not isinstance(actor, str) or actor not in KINDS:
             errors.append(prefix + "invalid-actor")
         itemsha = item.get("sha")
         if not isinstance(itemsha, str) or not SHA.fullmatch(itemsha):
@@ -87,7 +87,7 @@ def validate(receipt: object, *, expected_sha: str | None = None) -> dict:
         if code is not None and type(code) is int and code != 0:
             warnings.append(prefix + "nonzero-exit")
         checked.append({"id": identifier if isinstance(identifier, str) else None,
-                        "actor_claimed": actor if actor in KINDS else None,
+                        "actor_claimed": actor if isinstance(actor, str) and actor in KINDS else None,
                         "reported_exit_code": code if type(code) is int else None})
     mismatch = any("unexpected-head-sha" in e or "mismatched-check-sha" in e for e in errors)
     red = any("nonzero-exit" in w for w in warnings)
