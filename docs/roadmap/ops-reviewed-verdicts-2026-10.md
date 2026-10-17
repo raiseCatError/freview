@@ -37,11 +37,11 @@ Previous freview optional operations tested command/process exits but **did not 
 - [x] Verify full Ubuntu/macOS CI, checkpoint SHA.
 
 ### V3 — durable evidence checkpoints and self-review
-- [ ] Test-first: every completed pipeline stage emits a bounded atomic recovery manifest in caller-selected scratch, and inspection is non-executing.
-- [ ] Never automatically resume, skip checks, or trust a checkpoint as attestation; missing/corrupt/oversized/symlinked checkpoints fail closed.
-- [ ] Implement stage checkpoint writer, inspection CLI, and verify synthetic fixture in Ubuntu/macOS.
-- [ ] Inspect changed source/test/docs for hidden edge cases and false-confidence outputs.
-- [ ] Optional reproducible offline fake-worker/fake-reviewer script (no token usage, no network) that exercises three-round loop and negative receipts.
+- [x] Test-first: every completed pipeline stage emits a bounded atomic recovery manifest in caller-selected scratch, and inspection is non-executing.
+- [x] Never automatically resume, skip checks, or trust a checkpoint as attestation; missing/corrupt/oversized/symlinked checkpoints fail closed.
+- [x] Implement stage checkpoint writer, inspection CLI, and verify synthetic fixture in Ubuntu/macOS.
+- [x] Inspect changed source/test/docs for hidden edge cases and false-confidence outputs.
+- [x] Offline fake worker/reviewer tests in `tests/test_review_verdict.py` (no external token usage or network), plus checkpoint tests (no token usage, no network) that exercises three-round loop and negative receipts.
 - [ ] Verify both GitHub CI runners at **final exact SHA**. Leave stacked PR draft, no merge, release or tagging.
 
 ## Recovery
@@ -55,10 +55,10 @@ Previous freview optional operations tested command/process exits but **did not 
 ## Checkpoint receipts
 | Stage | Commit | Evidence | State |
 | --- | --- | --- | --- |
-| V0 | pending | red tests/CI | in progress |
-| V1 | pending | exact-head CI | not started |
-| V2 | pending | exact-head CI | not started |
-| V3 | pending | bounded source review + final CI | not started |
+| V0 | 3a8d1cf4 | [Intentional red CI](https://github.com/raiseCatError/freview/actions/runs/38995811988) | Complete |
+| V1 | 02cc70ee | Validated with V2 full suite at c48a0747 | Complete |
+| V2 | c48a0747 | [Ubuntu/macOS CI](https://github.com/raiseCatError/freview/actions/runs/38996154454) | Complete |
+| V3 | 41cec484 | [Ubuntu/macOS V3 code CI](https://github.com/raiseCatError/freview/actions/runs/38996474987); [bounded self-review](../audits/2026-10-17-structured-review-and-checkpoints.md) | Code/tests complete; final docs-head CI pending |
 
 ## Checkpoint update (2026-10-17)
 
@@ -66,3 +66,10 @@ Previous freview optional operations tested command/process exits but **did not 
 - V1 validator `review_verdict.py` added `02cc70ee`; pipeline integration `7856fac2`, then regression fixes `39a47790` and independent reviewed-file-path existence check `c48a0747`.
 - **V2 exact-head successful Ubuntu+macOS:** https://github.com/raiseCatError/freview/actions/runs/38996154454 at `c48a074706c814b48fc102ca32c58cb34569d7e1`. This is offline fake-reviewer CI, not real independent Claude/Codex/Opencode invocation.
 - Additional V3 checkpoint tests/implementation are next. Retain stacked draft PR #18. Any later CI must match its new exact head; prior success is not enough.
+
+## Final V3 checkpoint note
+
+- Structured review output alone cannot prove separate model identity. The reviewer-approved state is named `reviewer-approved-claim` and all independence fields stay false. A reviewer subprocess error doesn't trigger blind retries, only grounded `changes_requested` findings with an enabled worker do.
+- The scratch checkpoint is **not resumable executable state**. `inspect-checkpoint` is bounded, read-only, rejects forged metadata and does not skip or repeat stages. Full rerun is required for a fresh candidate SHA after interruption.
+- A macOS test was corrected to resolve `/var` versus `/private/var`; the source uses approved canonical scratch. Security/source review is [here](../audits/2026-10-17-structured-review-and-checkpoints.md).
+- **Release hold remains active**. PR #18 stacks on draft #17 which stacks on draft #16; none should merge, tag or publish autonomously. Final exact-head Ubuntu/macOS run and manual owner review remain required.
