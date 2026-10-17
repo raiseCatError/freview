@@ -503,8 +503,14 @@ def run_stage(stage: str, policy: dict, repo: Path, scratch: Path,
     if expected_sha is not None and sha != expected_sha:
         raise OpsError("Expected exact SHA differs from HEAD")
     workspace = _extract_archive(repo, root, sha)
-    return _execute(stage, policy, workspace, workspace.parent, sha,
-                    prompt=prompt, allow_credentials=allow_credentials)
+    before = _mutation_report_identity(workspace) if stage == "mutation" else None
+    result = _execute(stage, policy, workspace, workspace.parent, sha,
+                      prompt=prompt, allow_credentials=allow_credentials)
+    if stage == "mutation":
+        result["verification_workspace"] = str(workspace)
+        result["mutation_report_fresh"] = before != _mutation_report_identity(workspace)
+        _evaluate_mutation_stage(result, policy)
+    return result
 
 
 
@@ -916,6 +922,25 @@ def _mutation_report_summary(verifier: Path, options: dict) -> dict:
         max_survivors=options["max_survivors"])
 
 
+def _evaluate_mutation_stage(result: dict, policy: dict) -> dict | None:
+    """Make a completed mutation invocation answerable to its actual report."""
+    if result["status"] != "passed":
+        return None
+    quality = _mutation_report_summary(
+        Path(result["verification_workspace"]), policy["mutation_quality"])
+    if not result.get("mutation_report_fresh"):
+        quality = {**quality, "status": "incomplete",
+                   "quality_pass": False, "reason_code": "report-not-updated"}
+    result["mutation_quality"] = {
+        "status": quality["status"], "score": quality.get("score"),
+        "quality_pass": quality["quality_pass"], "counts": quality["counts"]}
+    if quality["status"] != "complete":
+        result["status"] = "mutation-inconclusive"
+    elif policy["mutation_quality"]["mode"] == "gate" and not quality["quality_pass"]:
+        result["status"] = "mutation-threshold-failed"
+    return quality
+
+
 def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
              allow_credentials=False, expected_sha=None, requirements="", rounds=None) -> dict:
     if not allow_execute:
@@ -1083,20 +1108,8 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                     verdict = "budget-exhausted"
                     break
                 result = verify_stage(name, cycle)
-                if name == "mutation" and result["status"] == "passed":
-                    mutation_quality = _mutation_report_summary(
-                        Path(result["verification_workspace"]),
-                        policy["mutation_quality"])
-                    if not result["mutation_report_fresh"]:
-                        mutation_quality = {
-                            **mutation_quality, "status": "incomplete",
-                            "quality_pass": False,
-                            "reason_code": "report-not-updated"}
-                    result["mutation_quality"] = {
-                        "status": mutation_quality["status"],
-                        "score": mutation_quality.get("score"),
-                        "quality_pass": mutation_quality["quality_pass"],
-                        "counts": mutation_quality["counts"]}
+                if name == "mutation":
+                    mutation_quality = _evaluate_mutation_stage(result, policy)
                 record(result, cycle)
                 if result["candidate_modified_during_verification"]:
                     verdict = name + "-modified-candidate"
@@ -1105,16 +1118,11 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                     verdict = "regression-mutated-source"
                     break
                 if result["status"] != "passed":
-                    verdict = name + "-failed"
+                    verdict = (result["status"] if name == "mutation" and
+                               result["status"] in ("mutation-inconclusive",
+                                                    "mutation-threshold-failed")
+                               else name + "-failed")
                     break
-                if name == "mutation":
-                    if mutation_quality is None or mutation_quality["status"] != "complete":
-                        verdict = "mutation-inconclusive"
-                        break
-                    if (policy["mutation_quality"]["mode"] == "gate" and
-                            not mutation_quality["quality_pass"]):
-                        verdict = "mutation-threshold-failed"
-                        break
     final_digest = _workspace_digest(workspace)
     changed = final_digest != starting_digest
     if changed and verdict in ("checks-executed-without-authenticated-verdict",
