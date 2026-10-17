@@ -487,9 +487,8 @@ def install_hooks(policy: dict, repo: Path, *, allow_install: bool = False) -> l
 
 def uninstall_hooks(repo: Path) -> list[str]:
     repo = Path(repo).resolve()
-    directory = Path(_git(repo, "rev-parse", "--git-path", "hooks"))
-    if not directory.is_absolute():
-        directory = repo / directory
+    common = Path(_git(repo, "rev-parse", "--git-common-dir"))
+    directory = (common if common.is_absolute() else repo / common) / "hooks"
     removed = []
     for name in ("pre-commit", "pre-push"):
         path = directory / name
