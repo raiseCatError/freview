@@ -24,7 +24,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Check optional helper syntax
-        run: python3 -m py_compile skills/freview/scripts/repo_snapshot.py skills/freview/scripts/review.py skills/freview/scripts/report_tools.py skills/freview/scripts/duplicates.py skills/freview/scripts/agent_doctor.py skills/freview/scripts/spec_inventory.py skills/freview/scripts/receipt_check.py
+        run: python3 -m py_compile skills/freview/scripts/repo_snapshot.py skills/freview/scripts/review.py skills/freview/scripts/report_tools.py skills/freview/scripts/duplicates.py skills/freview/scripts/agent_doctor.py skills/freview/scripts/spec_inventory.py skills/freview/scripts/receipt_check.py skills/freview/scripts/ops.py
       - name: Run no-dependency fixtures
         run: python3 -m unittest discover -s tests -v
       - name: Exercise read-only local snapshot
