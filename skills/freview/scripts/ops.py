@@ -646,11 +646,20 @@ def _save_checkpoint(storage: Path, data: dict) -> Path:
 
 
 def inspect_checkpoint(path: Path) -> dict:
-    """Read a bounded status record only. Never execute/continue from it."""
+    """Read a strict, bounded status record. No execution or implicit resumption."""
     path = Path(path)
     if path.is_symlink():
         raise OpsError("Symlink checkpoints are not trusted")
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+
+    def no_duplicate_keys(pairs: list[tuple[str, object]]) -> dict:
+        obj = {}
+        for key, value in pairs:
+            if key in obj:
+                raise ValueError("Duplicate checkpoint metadata key")
+            obj[key] = value
+        return obj
+
     try:
         with os.fdopen(os.open(path, flags), "rb") as handle:
             if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
@@ -658,24 +667,48 @@ def inspect_checkpoint(path: Path) -> dict:
             raw = handle.read(MAX_CHECKPOINT_BYTES + 1)
         if len(raw) > MAX_CHECKPOINT_BYTES:
             raise OpsError("Checkpoint exceeds input limit")
-        value = json.loads(raw.decode("utf-8", errors="strict"))
+        value = json.loads(raw.decode("utf-8", errors="strict"),
+                           object_pairs_hook=no_duplicate_keys)
     except (OSError, UnicodeError, ValueError):
         raise OpsError("Checkpoint malformed or unavailable") from None
-    if (not isinstance(value, dict) or
-            type(value.get("schema_version")) is not int or
+    required = {"schema_version", "status", "source_sha",
+                "initial_workspace_digest", "current_workspace_digest",
+                "cycle", "verdict", "stage_receipts",
+                "untrusted_metadata", "resumes_execution", "attested"}
+    if (not isinstance(value, dict) or set(value) != required or
+            type(value["schema_version"]) is not int or
             value["schema_version"] != 1 or
-            value.get("status") not in ("in-progress", "complete") or
-            not isinstance(value.get("source_sha"), str) or
+            value["status"] not in ("in-progress", "complete") or
+            not isinstance(value["source_sha"], str) or
             not SHA.fullmatch(value["source_sha"]) or
-            not isinstance(value.get("stage_receipts"), list) or
+            any(not isinstance(value[field], str) or
+                    not re.fullmatch(r"[0-9a-f]{64}", value[field])
+                for field in ("initial_workspace_digest", "current_workspace_digest")) or
+            type(value["cycle"]) is not int or not 0 <= value["cycle"] <= 3 or
+            not isinstance(value["verdict"], str) or
+            len(value["verdict"]) > 128 or
+            not isinstance(value["stage_receipts"], list) or
             len(value["stage_receipts"]) > 64 or
-            any(not isinstance(x, dict) or
-                not isinstance(x.get("stage"), str) or
-                not isinstance(x.get("status"), str) for x in value["stage_receipts"])):
+            value["untrusted_metadata"] is not True or
+            value["resumes_execution"] is not False or
+            value["attested"] is not False):
         raise OpsError("Checkpoint contract invalid")
-    # Ignore any attempted assertion of attestation or replay permission.
-    return {**value, "untrusted_metadata": True,
-            "resumes_execution": False, "attested": False}
+    receipt_keys = {"stage", "status", "exit_code", "log_path",
+                    "output_truncated", "workspace_digest_after"}
+    for item in value["stage_receipts"]:
+        if (not isinstance(item, dict) or set(item) != receipt_keys or
+                not isinstance(item["stage"], str) or item["stage"] not in STAGES or
+                not isinstance(item["status"], str) or item["status"] not in
+                    ("passed", "failed", "timeout", "output-limit") or
+                (item["exit_code"] is not None and type(item["exit_code"]) is not int) or
+                not isinstance(item["log_path"], str) or
+                not 1 <= len(item["log_path"]) <= 4096 or
+                type(item["output_truncated"]) is not bool or
+                not isinstance(item["workspace_digest_after"], str) or
+                not re.fullmatch(r"[0-9a-f]{64}", item["workspace_digest_after"])):
+            raise OpsError("Invalid checkpoint stage receipt")
+    # Syntactic consistency != authentic execution or tamper-proof metadata.
+    return value
 
 
 def _review_verdict(receipt: dict, *, expected_sha: str,
