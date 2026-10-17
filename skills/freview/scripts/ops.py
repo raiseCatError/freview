@@ -708,7 +708,11 @@ def _checkpoint_data(sha: str, initial_digest: str, current_digest: str,
                 "verification_workspace": item["verification_workspace"],
                 "source_entries_modified": item["source_entries_modified"],
                 "candidate_modified_during_verification": item["candidate_modified_during_verification"],
-            } if "candidate_digest" in item else {})
+            } if "candidate_digest" in item else {}),
+            **({
+                "mutation_report_fresh": item["mutation_report_fresh"],
+                "mutation_quality": item["mutation_quality"],
+            } if "mutation_quality" in item else {})
         } for item in receipts],
         "untrusted_metadata": True, "resumes_execution": False,
         "attested": False,
@@ -788,13 +792,19 @@ def inspect_checkpoint(path: Path) -> dict:
                     "output_truncated", "workspace_digest_after"}
     verification_keys = {"candidate_digest", "verification_workspace",
                          "source_entries_modified", "candidate_modified_during_verification"}
+    mutation_keys = {"mutation_report_fresh", "mutation_quality"}
     for item in value["stage_receipts"]:
         if (not isinstance(item, dict) or
                 not receipt_keys.issubset(item) or
-                set(item) not in (receipt_keys, receipt_keys | verification_keys) or
+                set(item) not in (receipt_keys,
+                                  receipt_keys | verification_keys,
+                                  receipt_keys | verification_keys | mutation_keys) or
                 not isinstance(item["stage"], str) or item["stage"] not in STAGES or
                 not isinstance(item["status"], str) or item["status"] not in
-                    ("passed", "failed", "timeout", "output-limit") or
+                    (("passed", "failed", "timeout", "output-limit",
+                      "mutation-inconclusive", "mutation-threshold-failed")
+                     if item["stage"] == "mutation"
+                     else ("passed", "failed", "timeout", "output-limit")) or
                 (item["exit_code"] is not None and type(item["exit_code"]) is not int) or
                 not isinstance(item["log_path"], str) or
                 not 1 <= len(item["log_path"]) <= 4096 or
@@ -810,6 +820,25 @@ def inspect_checkpoint(path: Path) -> dict:
                     type(item["source_entries_modified"]) is not bool or
                     type(item["candidate_modified_during_verification"]) is not bool):
                 raise OpsError("Invalid verification workspace provenance")
+        if mutation_keys.issubset(item):
+            quality = item["mutation_quality"]
+            if (item["stage"] != "mutation" or
+                    type(item["mutation_report_fresh"]) is not bool or
+                    not isinstance(quality, dict) or
+                    set(quality) != {"status", "score", "quality_pass", "counts"} or
+                    quality["status"] not in (
+                        "complete", "incomplete", "invalid", "missing",
+                        "no-valid-mutants") or
+                    type(quality["quality_pass"]) is not bool or
+                    (quality["score"] is not None and
+                     (type(quality["score"]) not in (int, float) or
+                      not 0 <= quality["score"] <= 100)) or
+                    not isinstance(quality["counts"], dict) or
+                    len(quality["counts"]) > 24 or
+                    any(not isinstance(k, str) or len(k) > 60 or
+                        type(v) is not int or v < 0
+                        for k, v in quality["counts"].items())):
+                raise OpsError("Invalid mutation checkpoint provenance")
     # Syntactic consistency != authentic execution or tamper-proof metadata.
     return value
 
