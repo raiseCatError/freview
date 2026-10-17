@@ -88,5 +88,57 @@ class EvidenceReportTests(unittest.TestCase):
         self.assertIn("not independently proven by JSON validation", reference)
 
 
+    def test_duplicate_claims_are_rejected(self):
+        obj = report()
+        obj["claim_evidence"] = [evidence(), evidence()]
+        self.assertEqual(self.validate(obj).returncode, 2)
+
+    def test_unattributed_independence_is_rejected(self):
+        obj = report()
+        item = evidence()
+        item["evidence_state"] = "independently-reproduced"
+        item["source_actor"] = "worker"
+        obj["claim_evidence"] = [item]
+        self.assertEqual(self.validate(obj).returncode, 2)
+
+    def test_claim_evidence_delta_reports_changes_not_resolutions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            old = report()
+            old["claim_evidence"] = [evidence()]
+            new = report()
+            item = evidence()
+            item["evidence_state"] = "unverified"
+            item["limitations"] = ["original CI artifact inaccessible"]
+            new["claim_evidence"] = [item]
+            (root / "before.json").write_text(json.dumps(old))
+            (root / "after.json").write_text(json.dumps(new))
+            p = subprocess.run([sys.executable, str(REPORTS), "--format", "json",
+                                str(root / "before.json"), str(root / "after.json")],
+                               capture_output=True, text=True, timeout=30)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            delta = json.loads(p.stdout)["claim_evidence_delta"]
+            self.assertEqual(delta["changed"][0]["after"]["evidence_state"], "unverified")
+            self.assertEqual(delta["unchanged_count"], 0)
+            self.assertIn("not proven", delta["warning"])
+
+    def test_missing_evidence_in_new_report_is_not_fixed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            old = report()
+            old["claim_evidence"] = [evidence()]
+            new = report()
+            new["claim_evidence"] = []
+            (root / "before.json").write_text(json.dumps(old))
+            (root / "after.json").write_text(json.dumps(new))
+            p = subprocess.run([sys.executable, str(REPORTS), "--format", "json",
+                                str(root / "before.json"), str(root / "after.json")],
+                               capture_output=True, text=True, timeout=30)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            delta = json.loads(p.stdout)["claim_evidence_delta"]
+            self.assertEqual(len(delta["absent_from_new_report"]), 1)
+            self.assertNotIn("resolved", delta)
+
+
 if __name__ == "__main__":
     unittest.main()
