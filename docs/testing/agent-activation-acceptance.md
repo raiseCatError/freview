@@ -2,6 +2,8 @@
 
 **Purpose:** Verify that the *Agent Skill itself* is discovered and activated, separately from successful Python helper execution. This checklist requires a real local agent session. It cannot be completed through GitHub CI alone.
 
+**Latest evidence (2026-10-17):** See the [final pre-release source review and owner-reported native runtime results](../audits/2026-10-17-final-pre-release-self-review.md). This page is the *acceptance protocol*, not a claim that its five checks have been executed for every client. The user reports native `/freview` invocation in OpenCode; a separate physical OpenCode Full report was not provided for this record.
+
 ## Baseline and permissions
 
 Before testing, record: target repository identity, current directory and Git root (if any), selected ref/HEAD, whether working tree is dirty, installed freview skill path and asset hash/ref, agent binary/version, chosen model and reasoning setting, timezone, expected scratch volume and permissions.

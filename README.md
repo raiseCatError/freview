@@ -8,9 +8,11 @@ freview is a portable, evidence-first [Agent Skill](https://agentskills.io/) for
 
 It produces a review, not a cleanup script. Default operations are **read-only**.
 
-> **Status:** Initial portable skill. Installation and exact agent-discovery behavior may vary by agent version; verify it against your setup. The default audit is strictly read-only.
+> **Status:** Pre-release read-only preview for trusted repositories; **no version has been tagged or published**. Installation and native discovery depend on agent/runtime configuration. A Full review is not a security certification or physical-device verification.
 
-**Dogfooding:** [freview reviews freview](docs/freview-reviews-freview.md) — a self-audit that is intentionally less flattering than a green CI badge.
+**Current evidence:** [PR #14](https://github.com/raiseCatError/freview/pull/14) merged at [`b4e9de58`](https://github.com/raiseCatError/freview/commit/b4e9de581107b8b78b4a710a5be93fa4e90510e8), with [99 Python tests passing on both Ubuntu and macOS](https://github.com/raiseCatError/freview/actions/runs/38983887532). User-provided field evidence reports native invocation in Antigravity CLI, Claude Code, Codex and OpenCode; this is **not** four independently re-executed Full audits, and OpenCode's full five-gate acceptance matrix remains unobserved.
+
+**Dogfooding:** [final pre-release freview-on-freview review](docs/audits/2026-10-17-final-pre-release-self-review.md) · [historical original audit](docs/freview-reviews-freview.md). The newer source review is a bounded, hosted-evidence **partial-audit**, not native invocation in the author's agent session.
 
 ## Install
 

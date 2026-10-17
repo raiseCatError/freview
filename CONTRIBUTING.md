@@ -23,6 +23,8 @@ Tests create temporary Git repositories and must use a safe scratch location; ob
 
 ## Proposing improvements
 
+Use the [bug-report template](.github/ISSUE_TEMPLATE/bug_report.md) for incorrect audits, unsafe behavior or activation failures, and the [feature-request template](.github/ISSUE_TEMPLATE/feature_request.md) for proposed coverage. Pull requests should use the [review checklist](.github/pull_request_template.md). Never submit private working-tree inventories or raw reports to public issues.
+
 Open an issue explaining which audit coverage is missing, why it affects real users, and how a reproducible fixture can validate the proposed detection. Submit a pull request with scope, tests/evidence, the desired classification and its false-positive limits. Do not paste private source, credentials or terminal history into public issues.
 
 The skill should remain compact. Add focused, linked reference files rather than one giant repeated system prompt. Keep the report usable by people, with a transparent list of what the agent could not observe.
