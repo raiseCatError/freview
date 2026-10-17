@@ -219,6 +219,32 @@ class OptionalOperationsTests(unittest.TestCase):
             ops.run_stage("tests", policy, self.repo, inside,
                           allow_execute=True, expected_sha=self.head)
 
+    def test_pipeline_cannot_claim_shipping_without_any_test_execution(self):
+        policy = self.policy(shipping=True)
+        with self.assertRaises(ops.OpsError):
+            ops.pipeline(policy, self.repo, self.scratch,
+                         allow_execute=True, expected_sha=self.head,
+                         requirements="Ship safely")
+        self.assertEqual(list(self.scratch.iterdir()), [])
+
+    def test_missing_enabled_stage_argv_does_not_create_workspace(self):
+        policy = self.policy(tests=True)
+        with self.assertRaises(ops.OpsError):
+            ops.run_stage("tests", policy, self.repo, self.scratch,
+                          allow_execute=True, expected_sha=self.head)
+        self.assertEqual(list(self.scratch.iterdir()), [])
+
+    def test_optional_planning_agent_command_executes_only_in_scratch(self):
+        policy = self.policy(planning=True)
+        policy["commands"]["planning"] = [sys.executable, "-c",
+                                            "from pathlib import Path;Path('plan.md').write_text('approved draft')"]
+        report = ops.run_stage("planning", policy, self.repo, self.scratch,
+                               allow_execute=True, expected_sha=self.head,
+                               prompt="Spec-first planning")
+        self.assertEqual(report["status"], "passed")
+        self.assertFalse((self.repo / "plan.md").exists())
+        self.assertTrue((Path(report["log_path"]).parent / "work" / "plan.md").exists())
+
     def test_hooks_install_and_uninstall_never_touch_other_hooks(self):
         policy = self.policy(hooks=True)
         path = self.repo / ".freview-ops.json"
