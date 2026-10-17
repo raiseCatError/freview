@@ -97,6 +97,12 @@ python3 -I skills/freview/scripts/ops.py plan --repo . --requirements "Desired b
 
 A completed reviewer process cannot approve itself with plain text: freview validates exact source/workspace identity and retains [non-resuming atomic scratch checkpoints](skills/freview/references/review-verdict-protocol.md). The helper runs the worker in a **disposable committed-tree candidate**, then tests, reviewers and mutation tools in their own **fresh verification copies** (all under explicitly approved scratch), never in the original checkout. Test caches do not count as worker changes; a test modifying pre-existing source files or a reviewer modifying its copy blocks its respective gate. This is isolation of files, **not a secure OS sandbox**. Real Claude/Codex tokens/accounts, native agent activation, mutation scores, correctness, real release authorization and cross-agent independence remain separately verifiable and are **not** certified by synthetic CI fixtures. When a worker modifies the disposable source snapshot, freview records its workspace fingerprint and **blocks the shipping handoff until those edits are integrated and independently checked**. Shipping is a handoff, not an automated push, merge or deployment. [Design and recovery journal](docs/roadmap/optional-ops-2026-10.md).
 
+### Mutation-quality gates and bounded autonomy (opt-in)
+
+The ops companion now understands Stryker JSON and mutmut CI stats **as actual mutation evidence**, rather than trusting a mutator's exit code alone. It reports detected, surviving/no-coverage, pending and unknown mutants, plus a bounded sample of survivor locations. Missing, stale, interrupted or malformed reports are inconclusive; a separately enabled score gate can block a handoff. The portable mutmut runner invokes an **already-installed** mutmut CLI and exports its stats without a shell.
+
+Worker/reviewer loops additionally enforce a **global subprocess budget** and stop when a worker makes no source progress or repeated findings remain unchanged. All behavior is explicitly configurable; all modules remain OFF by default. Scratch checkpoints retain evidence without automatically resuming or signing an audit. See the [mutation and autonomy guide](skills/freview/references/mutation-autonomy.md) and [configuration example](examples/freview-ops.example.json).
+
 ## Review modes
 
 | Capability | Quick | Standard (daily) | Full |
