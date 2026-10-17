@@ -63,10 +63,10 @@ These are **separate dimensions**, never a single success score. Independently r
 **Gate:** independent focused tests + exact-head CI; checkpoint commit.
 
 ### C3 — agent-level source-to-shipping reconciliation
-- [ ] Extend freview instructions and report schema compatibly to cite spec sources and per-claim verification provenance, including tests/CI exact SHA and source actor.
-- [ ] Explicitly distinguish metadata inventory (Standard) from source/coverage tracing (Full); no silent test runs or mutation.
-- [ ] Add an opt-in **independent verification playbook**: untrusted worker summary ignored on first pass; rerun only with permission, sandbox/isolated worktree and bounded cost; inspect test skips/deletions/mutations and baseline regression sensitivity; park to human on blockers.
-- [ ] Add clear command examples and README positioning.
+- [x] Extend freview instructions and report schema compatibly to cite spec sources and per-claim verification provenance, including tests/CI exact SHA and source actor.
+- [x] Explicitly distinguish metadata inventory (Standard) from source/coverage tracing (Full); no silent test runs or mutation.
+- [x] Add an opt-in **independent verification playbook**: untrusted worker summary ignored on first pass; rerun only with permission, sandbox/isolated worktree and bounded cost; inspect test skips/deletions/mutations and baseline regression sensitivity; park to human on blockers.
+- [x] Add clear command examples and README positioning.
 **Gate:** existing contract/schema tests, manual semantics review and exact-head CI; checkpoint commit.
 
 ### C4 — comparative ground-truth fixtures and CI
@@ -103,9 +103,9 @@ These are **separate dimensions**, never a single success score. Independently r
 | --- | --- | --- | --- |
 | C0 | fc3fb224 | GitHub plan commit | Complete |
 | C1 | 438d99b7 | [Ubuntu/macOS exact-head success](https://github.com/raiseCatError/freview/actions/runs/38986224178) | Complete |
-| C2 | 04f919ae | Receipt implementation/tests committed; exact-head CI pending | Under verification |
-| C3 | pending | pending | Not started |
-| C4 | pending | pending | Not started |
+| C2 | 92a9aa2c | [Hardened helpers Ubuntu/macOS CI success](https://github.com/raiseCatError/freview/actions/runs/38986782933) | Complete |
+| C3 | 50b203c6 | [Ubuntu/macOS exact-head CI success](https://github.com/raiseCatError/freview/actions/runs/38987190435) | Complete |
+| C4 | pending | Ground-truth fixture and independent self-review pending | In progress |
 
 Note: this journal is updated in later checkpoint commits. If a worker gets interrupted before doing so, **use GitHub commits and CI as the source of truth**.
 
@@ -114,3 +114,10 @@ Note: this journal is updated in later checkpoint commits. If a worker gets inte
 - C1 successful PR run: https://github.com/raiseCatError/freview/actions/runs/38986224178 at exact head `438d99b7`; Ubuntu/macOS jobs both completed successfully.
 - C2 files: `skills/freview/scripts/receipt_check.py`, `tests/test_receipt_check.py`; CI syntax coverage extended. This checker validates metadata consistency **only** and intentionally outputs `provenance_verified=false`. Untrusted independence assertions are warnings, not confirmations.
 - **Next agent must check C2 exact-head workflow** before starting C3, and independently review test and receipt behavior. Do not mistake older green C1 CI for current C2 CI.
+
+## Session update: C3 completed
+
+- C2 tightened spec inventory: bounded all-entries traversal (including irrelevant files), no-follow symlink handling, explicit truncated status; receipt output distinguishes `claimed-evidence`, `incomplete`, `failed`, `contradictory`, `invalid`. Exact-head Ubuntu/macOS C2 run: https://github.com/raiseCatError/freview/actions/runs/38986782933 at `92a9aa2c`.
+- C3 source-to-shipping reporting: optional `spec_sources`/`claim_evidence` in both synchronized schema copies; explicit independent reviewer playbook; linked from skill, README, delivery/report docs. Report comparer emits `claim_evidence_delta` only when both inputs include claims and treats disappearance as unknown, not resolved. Test cases cover backward compatibility, malformed provenance, duplicate IDs, changed and absent claims.
+- C3 exact-head Ubuntu/macOS run: https://github.com/raiseCatError/freview/actions/runs/38987190435 at `50b203c6`.
+- **Next checkpoint C4 only**: adversarial ground-truth cases and final self-review, then exact-head CI and leave draft PR on release hold.
