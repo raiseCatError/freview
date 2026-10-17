@@ -85,6 +85,22 @@ class ReceiptTests(unittest.TestCase):
             self.assertEqual(p.returncode, 2)
             self.assertNotIn(str(path), p.stdout)
 
+    def test_schema_version_bool_not_accepted(self):
+        receipt = sample()
+        receipt["schema_version"] = True
+        self.assertEqual(receipts.validate(receipt)["status"], "invalid")
+        receipt["schema_version"] = 1.0
+        self.assertEqual(receipts.validate(receipt)["status"], "invalid")
+
+    def test_invalid_optional_metadata(self):
+        receipt = sample()
+        receipt["checks"][0]["note"] = ["not-a-string"]
+        self.assertIn("check-0:invalid-note", receipts.validate(receipt)["errors"])
+
+    def test_bad_top_level_preserves_no_provenance_claim(self):
+        result = receipts.validate([])
+        self.assertFalse(result["provenance_verified"])
+
     def test_duplicate_ids(self):
         receipt = sample()
         receipt["checks"].append(dict(receipt["checks"][0]))
