@@ -40,7 +40,16 @@ def discover(root: Path, *, max_files: int = MAX_FILES, max_depth: int = MAX_DEP
     for provider, directories in SOURCES.items():
         for relative, role in directories:
             directory = root / relative
-            if directory.is_symlink():
+            # A symlink in any parent component must not redirect a scan outside
+            # the requested checkout (e.g. openspec -> /private/other).
+            cursor = root
+            redirected = False
+            for component in Path(relative).parts:
+                cursor = cursor / component
+                if cursor.is_symlink():
+                    redirected = True
+                    break
+            if redirected:
                 result["warnings"].append("symlink-skipped:" + relative)
                 continue
             if not directory.is_dir():
