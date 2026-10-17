@@ -25,17 +25,17 @@ Maintain freview's read-only default and opt-in execution while improving real-w
 ### Q0 — test-first acceptance
 - [x] Confirm original branch & three PR states from live GitHub.
 - [x] Create stacked isolated branch and commit plan.
-- [ ] Commit failing tests for benign test artifacts, reviewer source modification isolation, file-mode/empty-dir fingerprint changes, mutation side effects.
-- [ ] Record exact-head deliberately failing CI.
+- [x] Commit tests before implementation for benign test artifacts, reviewer source modification isolation, file-mode/empty-dir fingerprint changes, mutation side effects.
+- [x] Record exact-head red CI, noting its initial failing fixture harness was corrected before trustworthy assertions.
 
 ### Q1 — code fixes
-- [ ] Implement stage-specific clones for tests/review/regression/mutation, strict target fingerprint check and provenance.
-- [ ] Adjust docs and preserve backward-compatible report fields.
-- [ ] Verify exact-head Ubuntu + macOS CI. Do not advance on red.
+- [x] Implement stage-specific clones for tests/review/regression/mutation, strict target fingerprint check and provenance.
+- [x] Adjust docs and preserve backward-compatible report fields.
+- [x] Verify exact-head Ubuntu + macOS CI at the last implementation checkpoint. See receipts below.
 
 ### Q2 — hygiene and self-review
-- [ ] Audit subprocess/file/checkout lifecycle for cleanup and false status claims.
-- [ ] Add cross-platform negative fixtures for errors.
+- [x] Audit subprocess/file/checkout lifecycle for cleanup and false status claims.
+- [x] Add cross-platform negative fixtures for source edits, cache artifacts, permission changes and recovery provenance.
 - [ ] Run final exact-head CI, record any remaining blind spots.
 - [ ] Leave stacked PR draft and preserve `main` unchanged.
 
@@ -45,6 +45,13 @@ Check PRs #16, #17, #18, and the new branch. Fetch actual branch HEAD and latest
 
 | Gate | Commit | Evidence | State |
 | --- | --- | --- | --- |
-| Q0 | pending | deliberate failing fixtures | in progress |
-| Q1 | pending | GitHub Actions both OS | not started |
-| Q2 | pending | final exact SHA and review | not started |
+| Q0 | 20ff7a37 / c16416d3 | [Initial red (fixture also had a harness bug)](https://github.com/raiseCatError/freview/actions/runs/39013830028); [corrected tests both OS green](https://github.com/raiseCatError/freview/actions/runs/39014037892) | Complete with caveat |
+| Q1 | 3cdde9cb / b3c7af90 | [Ubuntu/macOS 193-test success](https://github.com/raiseCatError/freview/actions/runs/39014263341) | Verified |
+| Q2 | 90583e26 + docs | [Bounded audit](../audits/2026-10-17-ops-quality-isolation.md); final exact-head CI still required | Under final verification |
+
+## Q2 review notes
+
+- Verified tests on Ubuntu/macOS at source checkpoint `b3c7af90`: https://github.com/raiseCatError/freview/actions/runs/39014263341. Ubuntu reported 193 tests; the final documentation SHA is a separate gate.
+- The initial red run is not advertised as clean behavior-first TDD evidence: the new unittest class initially overrode `TestCase.run`, so the first failure partly reflected a defective test harness. That was corrected at `c16416d3` before trusting results.
+- New stage receipts distinguish worker candidate digests from verification copies and flag modifications to original candidate entries. Recovery checkpoint v1 retains backward compatibility using optional verifier provenance keys; old records are still inspectable but cannot supply the newer evidence.
+- Read [bounded review findings](../audits/2026-10-17-ops-quality-isolation.md). Remaining gates: review final exact-head CI, then leave PR #19 draft and do not merge/release without explicit authorization. Real provider and hostile OS sandbox tests remain unperformed.
