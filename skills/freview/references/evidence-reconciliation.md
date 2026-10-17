@@ -73,6 +73,8 @@ Schema v1 remains backward compatible. Agent reports may include:
 - `test_quality` is orthogonal: `not-reviewed`, `reviewed-with-gaps`, or `reviewed-no-observed-gaps`. “No observed gaps” is *not* “adequate for all behaviors.”
 - `lifecycle_status` is orthogonal to test verification and to whether a requirement is correct. Never upgrade to `released` without publication evidence.
 
+When comparing two compatible reports that both provide `claim_evidence`, `report_tools.py` additionally returns `claim_evidence_delta` with added, changed, and absent claim records. **An absent claim is not a verified fix or resolved concern.** Incompatible modes, repository identities and baselines remain disallowed by the existing comparer.
+
 Include unobservable stages explicitly; avoid a single “green” score. Public reports may expose private paths, test details and access tokens, so use the advisory report privacy check **and manual review** before publication.
 
 ## Comparison and operational limits
