@@ -83,6 +83,18 @@ class AutonomyMutationTests(unittest.TestCase):
         self.assertFalse(result["mutation_quality"]["quality_pass"])
         self.assertIsNone(result["shipping"])
 
+    def test_standalone_mutation_needs_report_as_well(self):
+        missing=self.policy(report=False)
+        result=ops.run_stage("mutation",missing,self.repo,self.scratch,
+            allow_execute=True,expected_sha=self.sha)
+        self.assertEqual(result["status"],"mutation-inconclusive")
+        self.assertFalse(result["mutation_quality"]["quality_pass"])
+        present=self.policy()
+        second=ops.run_stage("mutation",present,self.repo,self.scratch,
+            allow_execute=True,expected_sha=self.sha)
+        self.assertEqual(second["status"],"passed")
+        self.assertEqual(second["mutation_quality"]["score"],100.0)
+
     def test_mutation_advisory_reports_score_and_allows_handoff(self):
         result=self.run_pipeline(self.policy())
         self.assertEqual(result["mutation_quality"]["status"],"complete")
