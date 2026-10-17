@@ -148,6 +148,22 @@ class OptionalOperationsTests(unittest.TestCase):
         self.assertEqual(result["shipping"]["status"], "handoff-only")
         self.assertFalse(result["shipping"]["merged"])
 
+    def test_noisy_agent_cannot_leave_child_running_after_output_cap(self):
+        marker = self.scratch / "unexpected-child"
+        child = ("import time;time.sleep(1);"
+                 "from pathlib import Path;Path(" + repr(str(marker)) + ").write_text('oops')")
+        source = ("import subprocess,sys;"
+                  "subprocess.Popen([sys.executable,'-c'," + repr(child) + "]);"
+                  "sys.stdout.write('Z'*1000000)")
+        policy = self.policy(tests=True)
+        policy["commands"]["tests"] = [sys.executable, "-c", source]
+        result = ops.run_stage("tests", policy, self.repo, self.scratch,
+                               allow_execute=True, expected_sha=self.head)
+        self.assertEqual(result["status"], "output-limit")
+        import time
+        time.sleep(1.25)
+        self.assertFalse(marker.exists(), "Orphan child escaped process-group termination")
+
     def test_git_archive_stream_never_writes_beyond_byte_budget(self):
         archive = self.scratch / "bounded.tar"
         saved = ops.MAX_ARCHIVE
