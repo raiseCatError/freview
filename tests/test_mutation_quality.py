@@ -68,6 +68,21 @@ class MutationReportTests(unittest.TestCase):
         self.assertEqual(result["status"],"incomplete")
         self.assertFalse(result["quality_pass"])
 
+    def test_mutmut_unexported_categories_are_inconclusive(self):
+        # Real mutmut total also includes not_checked and caught_by_type_check,
+        # neither of which is exported in mutmut-cicd-stats.json.
+        data={"killed":3,"survived":0,"no_tests":0,"timeout":0,"skipped":0,
+              "suspicious":0,"segfault":0,"check_was_interrupted_by_user":0,"total":5}
+        result=mutation.summarize(data)
+        self.assertEqual(result["status"],"incomplete")
+        self.assertEqual(result["counts"]["unclassified"],2)
+        self.assertFalse(result["quality_pass"])
+
+    def test_fractional_mutation_score_cannot_round_into_passing_threshold(self):
+        result=mutation.summarize(stryker(["Killed"]*599+["Survived"]*401),
+                                  min_score=59.91)
+        self.assertFalse(result["quality_pass"])
+
     def test_mutmut_tampered_totals_do_not_pass(self):
         report={"killed":3,"survived":0,"no_tests":0,"timeout":0,"skipped":0,
                 "suspicious":0,"segfault":0,"check_was_interrupted_by_user":0,"total":1}
