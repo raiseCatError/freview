@@ -12,7 +12,7 @@ All nine modules are **disabled** unless a project explicitly enables them: `spe
 | implementation | Execute configured worker CLI on a **disposable committed snapshot** with spec prompt | No edits to original; review diff and apply separately |
 | tests | Execute an exact user-selected argv test command in scratch | No test discovery scripts automatically installed/executed |
 | adversarial | Launch independently configured reviewer CLI, fresh process; no worker summary in initial prompt | Reviewer verdict remains untrusted text; process exit 0 is **not** approval |
-| mutation | Launch explicitly installed third-party mutation command in disposable snapshot | No internal mutator or interpreted score; review raw reports |
+| mutation | Launch an already-installed Stryker or mutmut command in isolated verifier, validate fresh report and interpret score/survivors | Advisory by default; opt-in score gate; missing/incomplete evidence blocks; no built-in mutation engine |
 | regression | Run configured command, or dedicated `sensitivity` against exact baseline and candidate | Old-code failure can be unrelated; not correctness proof |
 | hooks | Explicitly install owned pre-commit/pre-push branch guard; refuse conflicts | Git hook is bypassable, not a server-side GitHub rule |
 | shipping | Generate exact-ref handoff checklist only, no publish | Separate human approval to merge/deploy/release elsewhere |
@@ -63,7 +63,7 @@ No ambient scratch fallback. Resolve external SSD mount **before** choosing scra
 
 ## Config and controls
 
-`schema_version:1`, `modules` booleans, `commands` explicit argv arrays (not shell command strings), `limits` caps, and optional `pass_env`. Defaults: 120 seconds per command; at most three review rounds; 16 KiB captured output; no forwarded credentials. Caps: 600 seconds, 3 rounds, 64 KiB output. Unexpected keys/invalid types block.
+`schema_version:1`, `modules` booleans, `commands` explicit argv arrays (not shell command strings), `limits` caps, optional `pass_env`, `mutation_quality` and `autonomy`. Defaults: 120 seconds per command, at most three review rounds, a **total of 12 executed stages**, 16 KiB captured output, no forwarded credentials. Hard caps: 600 seconds/stage, 3 review rounds, 32 stages, 64 KiB output. Unexpected keys/invalid types block. See [mutation/autonomy defaults and tuning](mutation-autonomy.md).
 
 If a CLI needs existing account auth, set an **allowlisted** `pass_env` in the *trusted* policy and supply **both** `--allow-execute` and `--allow-credentials`. No keys are inherited implicitly. This is still not a sandbox, and forwarding secrets exposes them to that CLI and any child process it starts. Never install an agent tool from an untrusted repo as a side effect of review.
 
@@ -85,6 +85,6 @@ Hooks never overwrite existing hooks or `core.hooksPath`. The pre-push guard ref
 
 ## Tokens, security and evaluation
 
-Use Standard freview read-only for daily checks. Use an opt-in pipeline only for genuinely significant changes. Short prompts and <=3 review rounds avoid unbounded agent loops; the default enabled module set is empty, so default agent token expenditure is zero. Only return summarized receipts with private logs left under explicitly selected scratch.
+Use Standard freview read-only for daily checks. Use an opt-in pipeline only for genuinely significant changes. Short prompts, <=3 review rounds, a global subprocess cap, no-progress detection and repeated-finding protection limit token consumption; default enabled modules remain empty, so no agent execution occurs without opt-in. Only return summarized receipts with private logs left under explicitly selected scratch.
 
 The tests validate **deterministic integration behavior** with fake local programs and Git repos. CI must not invoke real Claude/Codex providers, paid APIs, mutation services, remote publishing or physical hardware. A real full self-review needs actual eligible agents and sandbox authorization, and must report any absent evidence. Do not call a schema-valid receipt an execution attestation.

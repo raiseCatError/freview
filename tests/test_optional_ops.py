@@ -211,7 +211,8 @@ class OptionalOperationsTests(unittest.TestCase):
         policy["commands"]["mutation"] = [sys.executable, "-c", "print('MUTATION COMPLETE')"]
         result = ops.run_stage("mutation", policy, self.repo, self.scratch,
                                allow_execute=True, expected_sha=self.head)
-        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["status"], "mutation-inconclusive")
+        self.assertFalse(result["mutation_quality"]["quality_pass"])
         self.assertFalse(result["proves_test_quality"])
 
     def test_adversarial_review_no_worker_summary_first_and_three_round_cap(self):

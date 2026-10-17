@@ -112,7 +112,8 @@ class IsolationContracts(unittest.TestCase):
                   "Path('mutation-results.txt').write_text('survivors=2');"
                   "print('mutator invocation completed')")
         result = self.run_pipeline(self.policy(tests="pass", mutation=mutant))
-        self.assertEqual(result["verdict"], "checks-executed-without-authenticated-verdict")
+        self.assertEqual(result["verdict"], "mutation-inconclusive")
+        self.assertIsNone(result["shipping"])
         self.assertFalse(result["workspace_modified"])
         self.assertTrue(result["executions"][-1]["workspace_modified"])
         self.assertFalse((Path(result["scratch_workspace"]) / "mutation-results.txt").exists())

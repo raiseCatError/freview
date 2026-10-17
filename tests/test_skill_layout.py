@@ -26,7 +26,7 @@ class SkillLayoutTests(unittest.TestCase):
         for ref in references:
             with self.subTest(ref=ref):
                 self.assertTrue((SKILL_DIR / ref).is_file())
-        for tool in ("repo_snapshot.py", "review.py", "report_tools.py", "duplicates.py", "agent_doctor.py", "spec_inventory.py", "receipt_check.py", "ops.py", "review_verdict.py"):
+        for tool in ("repo_snapshot.py", "review.py", "report_tools.py", "duplicates.py", "agent_doctor.py", "spec_inventory.py", "receipt_check.py", "ops.py", "review_verdict.py", "mutation_report.py", "mutmut_driver.py"):
             self.assertTrue((SKILL_DIR / "scripts" / tool).is_file())
         for asset in ("assets/schemas/freview-config.schema.json",
                       "assets/schemas/freview-report.schema.json",

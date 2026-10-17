@@ -45,7 +45,7 @@ class OpsError(Exception):
 
 
 def validate_policy(obj: object) -> dict:
-    if not isinstance(obj, dict) or set(obj) - {"schema_version", "modules", "commands", "limits", "pass_env"}:
+    if not isinstance(obj, dict) or set(obj) - {"schema_version", "modules", "commands", "limits", "pass_env", "mutation_quality", "autonomy"}:
         raise OpsError("Invalid or unknown policy fields")
     if type(obj.get("schema_version")) is not int or obj["schema_version"] != 1:
         raise OpsError("Unsupported policy version")
@@ -93,8 +93,37 @@ def validate_policy(obj: object) -> dict:
         value = limits[key]
         if type(value) is not int or not minimum <= value <= maximum:
             raise OpsError("Invalid limit: " + key)
+    mutation = {"format": "auto", "mode": "advisory", "min_score": 60,
+                "min_valid_mutants": 1, "max_survivors": 12}
+    raw_mutation = obj.get("mutation_quality", {})
+    if not isinstance(raw_mutation, dict) or set(raw_mutation) - set(mutation):
+        raise OpsError("Unknown mutation-quality options")
+    mutation.update(raw_mutation)
+    if (mutation["format"] not in ("auto", "stryker", "mutmut") or
+            mutation["mode"] not in ("advisory", "gate") or
+            type(mutation["min_score"]) not in (int, float) or
+            not 0 <= mutation["min_score"] <= 100 or
+            type(mutation["min_valid_mutants"]) is not int or
+            not 1 <= mutation["min_valid_mutants"] <= 10000 or
+            type(mutation["max_survivors"]) is not int or
+            not 0 <= mutation["max_survivors"] <= 50):
+        raise OpsError("Invalid mutation-quality settings")
+    autonomy = {"max_stage_runs": 12, "stop_on_no_progress": True,
+                "max_repeated_findings": 1, "require_mutation_for_shipping": False}
+    raw_autonomy = obj.get("autonomy", {})
+    if not isinstance(raw_autonomy, dict) or set(raw_autonomy) - set(autonomy):
+        raise OpsError("Unknown autonomy options")
+    autonomy.update(raw_autonomy)
+    if (type(autonomy["max_stage_runs"]) is not int or
+            not 1 <= autonomy["max_stage_runs"] <= 32 or
+            type(autonomy["max_repeated_findings"]) is not int or
+            not 1 <= autonomy["max_repeated_findings"] <= 3 or
+            type(autonomy["stop_on_no_progress"]) is not bool or
+            type(autonomy["require_mutation_for_shipping"]) is not bool):
+        raise OpsError("Invalid autonomy settings")
     return {"schema_version": 1, "modules": modules,
-            "commands": clean_commands, "limits": limits, "pass_env": forward}
+            "commands": clean_commands, "limits": limits, "pass_env": forward,
+            "mutation_quality": mutation, "autonomy": autonomy}
 
 
 def load_policy(path: Path) -> dict:
@@ -120,7 +149,9 @@ def status(policy: dict) -> dict:
             "disabled": [key for key in MODULES if not policy["modules"][key]],
             "limits": policy["limits"], "read_only_default": True,
             "execution_requires_explicit_flag": True, "release_automation": False,
-            "credentials_require_separate_flag": bool(policy.get("pass_env"))}
+            "credentials_require_separate_flag": bool(policy.get("pass_env")),
+            "mutation_quality": policy["mutation_quality"],
+            "autonomy": policy["autonomy"]}
 
 
 def plan(policy: dict, requirements: str, sha: str) -> dict:
@@ -472,8 +503,14 @@ def run_stage(stage: str, policy: dict, repo: Path, scratch: Path,
     if expected_sha is not None and sha != expected_sha:
         raise OpsError("Expected exact SHA differs from HEAD")
     workspace = _extract_archive(repo, root, sha)
-    return _execute(stage, policy, workspace, workspace.parent, sha,
-                    prompt=prompt, allow_credentials=allow_credentials)
+    before = _mutation_report_identity(workspace) if stage == "mutation" else None
+    result = _execute(stage, policy, workspace, workspace.parent, sha,
+                      prompt=prompt, allow_credentials=allow_credentials)
+    if stage == "mutation":
+        result["verification_workspace"] = str(workspace)
+        result["mutation_report_fresh"] = before != _mutation_report_identity(workspace)
+        _evaluate_mutation_stage(result, policy)
+    return result
 
 
 
@@ -671,7 +708,11 @@ def _checkpoint_data(sha: str, initial_digest: str, current_digest: str,
                 "verification_workspace": item["verification_workspace"],
                 "source_entries_modified": item["source_entries_modified"],
                 "candidate_modified_during_verification": item["candidate_modified_during_verification"],
-            } if "candidate_digest" in item else {})
+            } if "candidate_digest" in item else {}),
+            **({
+                "mutation_report_fresh": item["mutation_report_fresh"],
+                "mutation_quality": item["mutation_quality"],
+            } if "mutation_quality" in item else {})
         } for item in receipts],
         "untrusted_metadata": True, "resumes_execution": False,
         "attested": False,
@@ -751,13 +792,19 @@ def inspect_checkpoint(path: Path) -> dict:
                     "output_truncated", "workspace_digest_after"}
     verification_keys = {"candidate_digest", "verification_workspace",
                          "source_entries_modified", "candidate_modified_during_verification"}
+    mutation_keys = {"mutation_report_fresh", "mutation_quality"}
     for item in value["stage_receipts"]:
         if (not isinstance(item, dict) or
                 not receipt_keys.issubset(item) or
-                set(item) not in (receipt_keys, receipt_keys | verification_keys) or
+                set(item) not in (receipt_keys,
+                                  receipt_keys | verification_keys,
+                                  receipt_keys | verification_keys | mutation_keys) or
                 not isinstance(item["stage"], str) or item["stage"] not in STAGES or
                 not isinstance(item["status"], str) or item["status"] not in
-                    ("passed", "failed", "timeout", "output-limit") or
+                    (("passed", "failed", "timeout", "output-limit",
+                      "mutation-inconclusive", "mutation-threshold-failed")
+                     if item["stage"] == "mutation"
+                     else ("passed", "failed", "timeout", "output-limit")) or
                 (item["exit_code"] is not None and type(item["exit_code"]) is not int) or
                 not isinstance(item["log_path"], str) or
                 not 1 <= len(item["log_path"]) <= 4096 or
@@ -773,6 +820,25 @@ def inspect_checkpoint(path: Path) -> dict:
                     type(item["source_entries_modified"]) is not bool or
                     type(item["candidate_modified_during_verification"]) is not bool):
                 raise OpsError("Invalid verification workspace provenance")
+        if mutation_keys.issubset(item):
+            quality = item["mutation_quality"]
+            if (item["stage"] != "mutation" or
+                    type(item["mutation_report_fresh"]) is not bool or
+                    not isinstance(quality, dict) or
+                    set(quality) != {"status", "score", "quality_pass", "counts"} or
+                    quality["status"] not in (
+                        "complete", "incomplete", "invalid", "missing",
+                        "no-valid-mutants") or
+                    type(quality["quality_pass"]) is not bool or
+                    (quality["score"] is not None and
+                     (type(quality["score"]) not in (int, float) or
+                      not 0 <= quality["score"] <= 100)) or
+                    not isinstance(quality["counts"], dict) or
+                    len(quality["counts"]) > 24 or
+                    any(not isinstance(k, str) or len(k) > 60 or
+                        type(v) is not int or v < 0
+                        for k, v in quality["counts"].items())):
+                raise OpsError("Invalid mutation checkpoint provenance")
     # Syntactic consistency != authentic execution or tamper-proof metadata.
     return value
 
@@ -851,6 +917,59 @@ def _review_feedback(findings: list[dict]) -> str:
     )
 
 
+def _mutation_report_identity(workspace: Path) -> dict:
+    """Observe only known mutator artifact metadata before/after execution.
+
+    A pre-existing committed mutation report is not evidence of *this* run.
+    The freshness check is not a signature or a defense against malicious code.
+    """
+    observed = {}
+    for relative in ("reports/mutation/mutation.json",
+                     "mutants/mutmut-cicd-stats.json"):
+        path = workspace / relative
+        try:
+            details = path.lstat()
+            observed[relative] = (
+                details.st_mtime_ns, details.st_size, details.st_mode,
+                details.st_ino)
+        except FileNotFoundError:
+            observed[relative] = None
+    return observed
+
+
+def _mutation_report_summary(verifier: Path, options: dict) -> dict:
+    """Inspect only a bounded report in the actual mutation-stage workspace."""
+    spec = importlib.util.spec_from_file_location(
+        "freview_mutation_quality", Path(__file__).with_name("mutation_report.py"))
+    if spec is None or spec.loader is None:
+        raise OpsError("Mutation parser unavailable")
+    parser = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(parser)
+    return parser.inspect_workspace(
+        verifier, format=options["format"], min_score=options["min_score"],
+        min_valid_mutants=options["min_valid_mutants"],
+        max_survivors=options["max_survivors"])
+
+
+def _evaluate_mutation_stage(result: dict, policy: dict) -> dict | None:
+    """Make a completed mutation invocation answerable to its actual report."""
+    if result["status"] != "passed":
+        return None
+    quality = _mutation_report_summary(
+        Path(result["verification_workspace"]), policy["mutation_quality"])
+    if not result.get("mutation_report_fresh"):
+        quality = {**quality, "status": "incomplete",
+                   "quality_pass": False, "reason_code": "report-not-updated"}
+    result["mutation_quality"] = {
+        "status": quality["status"], "score": quality.get("score"),
+        "quality_pass": quality["quality_pass"], "counts": quality["counts"]}
+    if quality["status"] != "complete":
+        result["status"] = "mutation-inconclusive"
+    elif policy["mutation_quality"]["mode"] == "gate" and not quality["quality_pass"]:
+        result["status"] = "mutation-threshold-failed"
+    return quality
+
+
 def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
              allow_credentials=False, expected_sha=None, requirements="", rounds=None) -> dict:
     if not allow_execute:
@@ -895,8 +1014,12 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
     def verify_stage(stage: str, cycle_index: int, *, prompt: str = "") -> dict:
         digest = _workspace_digest(workspace)
         verifier = _verification_copy(workspace, storage, stage, cycle_index)
+        mutation_before = _mutation_report_identity(verifier) if stage == "mutation" else None
         report = _execute(stage, policy, verifier, verifier.parent, sha,
                           prompt=prompt, allow_credentials=allow_credentials)
+        if stage == "mutation":
+            mutation_after = _mutation_report_identity(verifier)
+            report["mutation_report_fresh"] = mutation_before != mutation_after
         report["verification_workspace"] = str(verifier)
         report["candidate_digest"] = digest
         report["source_entries_modified"] = _original_entries_changed(workspace, verifier)
@@ -904,10 +1027,19 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
             _workspace_digest(workspace) != digest)
         return report
     final_review = None
+    mutation_quality = None
     review_history = []
     worker_feedback = ""
+    last_finding_signature = None
+    repeated_findings = 0
+    autonomy = policy["autonomy"]
+    def budget_available() -> bool:
+        return len(receipts) < autonomy["max_stage_runs"]
     for cycle in range(1, rounds + 1):
         if policy["modules"]["planning"] and "planning" in policy["commands"]:
+            if not budget_available():
+                verdict = "budget-exhausted"
+                break
             report = _execute("planning", policy, workspace, storage, sha,
                 prompt="Produce a short implementation plan and acceptance tests:\n" + requirements,
                 allow_credentials=allow_credentials)
@@ -916,6 +1048,10 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                 verdict = "planning-process-failed"
                 break
         if policy["modules"]["implementation"]:
+            if not budget_available():
+                verdict = "budget-exhausted"
+                break
+            worker_before = _workspace_digest(workspace)
             report = _execute("implementation", policy, workspace, storage, sha,
                 prompt=("Implement approved requirements with tests first:\n" +
                         requirements + worker_feedback),
@@ -924,6 +1060,13 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
             if report["status"] != "passed":
                 verdict = "worker-failed"
                 break
+            if (worker_feedback and autonomy["stop_on_no_progress"] and
+                    _workspace_digest(workspace) == worker_before):
+                verdict = "no-progress"
+                break
+        if not budget_available():
+            verdict = "budget-exhausted"
+            break
         report = verify_stage("tests", cycle)
         record(report, cycle)
         if report["candidate_modified_during_verification"] or report["source_entries_modified"]:
@@ -937,6 +1080,9 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
             message = _review_prompt(requirements, sha, review_digest)
             if len(message) > MAX_PROMPT:
                 verdict = "review-prompt-over-budget"
+                break
+            if not budget_available():
+                verdict = "budget-exhausted"
                 break
             report = verify_stage("adversarial", cycle, prompt=message)
             record(report, cycle)
@@ -961,6 +1107,17 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                 break
             if final_review["status"] == "changes-requested":
                 verdict = "changes-requested"
+                signature = tuple(sorted((
+                    f["id"], f["path"], f["description"], f["evidence"]
+                ) for f in final_review["findings"]))
+                if signature == last_finding_signature:
+                    repeated_findings += 1
+                else:
+                    repeated_findings = 0
+                last_finding_signature = signature
+                if repeated_findings >= autonomy["max_repeated_findings"]:
+                    verdict = "stalled-review-findings"
+                    break
                 if cycle == rounds or not policy["modules"]["implementation"]:
                     break
                 try:
@@ -976,7 +1133,12 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
     if verdict in ("checks-executed-without-authenticated-verdict", "reviewer-approved-claim"):
         for name in ("regression", "mutation"):
             if policy["modules"][name]:
+                if not budget_available():
+                    verdict = "budget-exhausted"
+                    break
                 result = verify_stage(name, cycle)
+                if name == "mutation":
+                    mutation_quality = _evaluate_mutation_stage(result, policy)
                 record(result, cycle)
                 if result["candidate_modified_during_verification"]:
                     verdict = name + "-modified-candidate"
@@ -985,13 +1147,23 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
                     verdict = "regression-mutated-source"
                     break
                 if result["status"] != "passed":
-                    verdict = name + "-failed"
+                    verdict = (result["status"] if name == "mutation" and
+                               result["status"] in ("mutation-inconclusive",
+                                                    "mutation-threshold-failed")
+                               else name + "-failed")
                     break
     final_digest = _workspace_digest(workspace)
     changed = final_digest != starting_digest
     if changed and verdict in ("checks-executed-without-authenticated-verdict",
                                "reviewer-approved-claim"):
         verdict = "implementation-not-integrated"
+    if (autonomy["require_mutation_for_shipping"] and
+            policy["modules"]["shipping"] and
+            (not policy["modules"]["mutation"] or mutation_quality is None or
+             not mutation_quality["quality_pass"]) and
+            verdict in ("checks-executed-without-authenticated-verdict",
+                        "reviewer-approved-claim")):
+        verdict = "mutation-required"
     shipping = (ship_plan(policy, repo, verified=True)
                 if policy["modules"]["shipping"] and not changed and
                    verdict in ("checks-executed-without-authenticated-verdict",
@@ -1004,6 +1176,8 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
             "current_workspace_digest": final_digest,
             "workspace_modified": changed,
             "plan": generated_plan, "shipping": shipping,
+            "mutation_quality": mutation_quality,
+            "stage_runs": len(receipts), "stage_run_budget": autonomy["max_stage_runs"],
             "review": final_review, "review_history": review_history,
             "executions": receipts, "scratch_workspace": str(workspace),
             "independent_success_authenticated": False,
