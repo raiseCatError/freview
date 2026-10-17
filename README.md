@@ -90,7 +90,7 @@ The preview [freview ops companion](skills/freview/references/optional-ops.md) a
 python3 -I skills/freview/scripts/ops.py status --repo .
 
 # Copy examples/freview-ops.example.json into a *trusted* repo and deliberately
-# enable chosen modules/argv, then inspect invocation permissions and scratch.
+# enable chosen modules/argv, commit the policy, then inspect invocation permissions and scratch.
 python3 -I skills/freview/scripts/ops.py plan --repo . --requirements "Desired behavior"
 # See the full guide for --scratch, --expected-sha and --allow-execute.
 ```
