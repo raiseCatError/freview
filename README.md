@@ -81,6 +81,22 @@ python3 -I skills/freview/scripts/receipt_check.py receipt.json --expected-sha F
 
 The second command inspects a supplied JSON receipt and never runs its test command. Agent-generated reports may optionally list per-requirement evidence; `report_tools.py old.json new.json --format json` then highlights changed or missing claim evidence without pretending absent claims are resolved. A reference can be coherent yet unverified; failing, mismatched and incomplete evidence are reported separately. In a Full review, the agent may reconcile approved specification scenarios with implementation, test quality, exact-head CI, integration, and publication. **Actual independent test reruns, mutation analysis, tool installation, worktree changes, or merge gating require separate permission** and an isolated environment. See the [evidence-first audit protocol](skills/freview/references/evidence-reconciliation.md) and [durable design checkpoints](docs/roadmap/evidence-reconciliation-2026-10.md).
 
+## Optional operations: everything off by default
+
+The preview [freview ops companion](skills/freview/references/optional-ops.md) adds **separately enabled** specification/plan generation, worker CLI invocation, isolated test execution, fresh-process adversarial reviewer invocation (up to 3 bounded cycles), mutation-tool delegation, exact-commit baseline regression sensitivity, local Git hook guards and human shipping handoff. These are **not part of the default read-only audit**. No untrusted repository configuration can silently authorize execution, install tools or publish releases.
+
+```sh
+# No config = all modules disabled, no execution or tokens
+python3 -I skills/freview/scripts/ops.py status --repo .
+
+# Copy examples/freview-ops.example.json into a *trusted* repo and deliberately
+# enable chosen modules/argv, then inspect invocation permissions and scratch.
+python3 -I skills/freview/scripts/ops.py plan --repo . --requirements "Desired behavior"
+# See the full guide for --scratch, --expected-sha and --allow-execute.
+```
+
+The helper runs explicitly configured test/agent programs in a **disposable committed-tree snapshot**, not the original checkout. This is isolation of files, **not a secure OS sandbox**. Real Claude/Codex tokens/accounts, native agent activation, mutation scores, correctness, real release authorization and cross-agent independence remain separately verifiable and are **not** certified by synthetic CI fixtures. Shipping is a handoff, not an automated push, merge or deployment. [Design and recovery journal](docs/roadmap/optional-ops-2026-10.md).
+
 ## Review modes
 
 | Capability | Quick | Standard (daily) | Full |
