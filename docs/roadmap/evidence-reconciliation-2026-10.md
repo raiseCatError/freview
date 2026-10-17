@@ -70,13 +70,13 @@ These are **separate dimensions**, never a single success score. Independently r
 **Gate:** existing contract/schema tests, manual semantics review and exact-head CI; checkpoint commit.
 
 ### C4 — comparative ground-truth fixtures and CI
-- [ ] Create a small intentionally deceptive fixture set (stale success, changed test, unpushed candidate, divergent ref, missing spec, empty evidence) and document what each workflow can and cannot detect.
-- [ ] Verify exact **head commit** with existing Ubuntu/macOS checks. Record run URL/results; no unsupported claims of independent live agent execution.
-- [ ] Run a bounded self-review of changed files and reconcile findings against this plan.
+- [x] Create a small intentionally deceptive fixture set (stale success, changed test, unpushed candidate, divergent ref, missing spec, empty evidence) and document what each workflow can and cannot detect.
+- [x] Verify the completed C4 **source and test** head (`9257d00b`) with Ubuntu/macOS CI; the **final documentation head** remains a separate CI gate and must be checked against GitHub after the last commit. No unsupported claims of live agent execution.
+- [x] Run a bounded self-review of changed files and reconcile findings against this plan.
 **Gate:** CI green on final SHA; draft PR with limitations and explicit human acceptance checkboxes.
 
 ### C5 — release hold / future evaluation
-- [ ] Do **not** tag, publish or auto-merge.
+- [x] Do **not** tag, publish or auto-merge.
 - [ ] Benchmark against manually labeled repo states and spec-framework native verify commands when a trusted sandbox, resource budget and user authorization are available.
 - [ ] Only propose expanded scope (GSD/gstack adapters, automated independent execution, dashboard or merge rules) if confirmed gaps survive comparison.
 
@@ -105,7 +105,7 @@ These are **separate dimensions**, never a single success score. Independently r
 | C1 | 438d99b7 | [Ubuntu/macOS exact-head success](https://github.com/raiseCatError/freview/actions/runs/38986224178) | Complete |
 | C2 | 92a9aa2c | [Hardened helpers Ubuntu/macOS CI success](https://github.com/raiseCatError/freview/actions/runs/38986782933) | Complete |
 | C3 | 50b203c6 | [Ubuntu/macOS exact-head CI success](https://github.com/raiseCatError/freview/actions/runs/38987190435) | Complete |
-| C4 | pending | Ground-truth fixture and independent self-review pending | In progress |
+| C4 | 9257d00b | [Hardened code/fixtures Ubuntu + macOS CI](https://github.com/raiseCatError/freview/actions/runs/38987554940); final documentation-head CI still required | Code complete, handoff verification pending |
 
 Note: this journal is updated in later checkpoint commits. If a worker gets interrupted before doing so, **use GitHub commits and CI as the source of truth**.
 
@@ -121,3 +121,10 @@ Note: this journal is updated in later checkpoint commits. If a worker gets inte
 - C3 source-to-shipping reporting: optional `spec_sources`/`claim_evidence` in both synchronized schema copies; explicit independent reviewer playbook; linked from skill, README, delivery/report docs. Report comparer emits `claim_evidence_delta` only when both inputs include claims and treats disappearance as unknown, not resolved. Test cases cover backward compatibility, malformed provenance, duplicate IDs, changed and absent claims.
 - C3 exact-head Ubuntu/macOS run: https://github.com/raiseCatError/freview/actions/runs/38987190435 at `50b203c6`.
 - **Next checkpoint C4 only**: adversarial ground-truth cases and final self-review, then exact-head CI and leave draft PR on release hold.
+
+## Session update: C4 source and tests complete; final handoff CI gate
+
+- 11 labeled metadata scenarios added under `tests/fixtures/evidence_scenarios.json` and exercised by `tests/test_adversarial_scenarios.py`. The expected outcomes include **known missed** weak/reworked tests and ambiguous Spec Kit folder discovery. Existing real local-Git fixtures cover unpublished commits, cached tracking and worktrees.
+- Bounded source self-review: `docs/audits/2026-10-17-evidence-reconciliation-self-review.md`. It records bounded findings and fixes (entry cap, intermediate symlink, malformed actor/schema version, status precedence, non-object metadata) and unperformed real multi-agent/mutation/physical QA.
+- Source + regressions exact-head run: https://github.com/raiseCatError/freview/actions/runs/38987554940 at `9257d00b` — both Ubuntu/macOS green.
+- **Before closing the development cycle** fetch latest `feature/evidence-reconciliation-20261017` head, compare with `main`, and verify an exact-head green PR workflow (both OS jobs). Keep PR #16 draft, **do not merge or publish**. If latest workflow is pending, state pending honestly. The C5 real-world competitor benchmark and potential integrations remain intentionally deferred for separately authorized and resourced follow-up work.
