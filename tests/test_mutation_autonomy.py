@@ -84,7 +84,7 @@ class AutonomyMutationTests(unittest.TestCase):
         self.assertIsNone(result["shipping"])
 
     def test_mutation_advisory_reports_score_and_allows_handoff(self):
-        result=self.run(self.policy())
+        result=self.run_pipeline(self.policy())
         self.assertEqual(result["mutation_quality"]["status"],"complete")
         self.assertEqual(result["mutation_quality"]["score"],100.0)
         self.assertEqual(result["verdict"],"checks-executed-without-authenticated-verdict")
@@ -106,12 +106,12 @@ class AutonomyMutationTests(unittest.TestCase):
         self.assertIsNone(result["shipping"])
 
     def test_enabled_mutation_does_not_require_global_stage_budget_override(self):
-        result=self.run(self.policy(max_stage_runs=2))
+        result=self.run_pipeline(self.policy(max_stage_runs=2))
         self.assertEqual(len(result["executions"]),2)
         self.assertNotEqual(result["verdict"],"budget-exhausted")
 
     def test_budget_exhaustion_stops_before_next_process(self):
-        result=self.run(self.policy(agent=True,max_stage_runs=2))
+        result=self.run_pipeline(self.policy(agent=True,max_stage_runs=2))
         self.assertEqual(result["verdict"],"budget-exhausted")
         self.assertEqual(len(result["executions"]),2)
         self.assertIsNone(result["shipping"])
