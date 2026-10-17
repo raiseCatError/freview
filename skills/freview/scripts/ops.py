@@ -336,6 +336,68 @@ def run_stage(stage: str, policy: dict, repo: Path, scratch: Path,
                     prompt=prompt, allow_credentials=allow_credentials)
 
 
+
+def regression_sensitivity(policy: dict, repo: Path, scratch: Path,
+                           *, base_sha: str, test_paths: list[str],
+                           allow_execute: bool = False,
+                           allow_credentials: bool = False,
+                           expected_sha: str | None = None) -> dict:
+    """Run candidate tests on both candidate and baseline in separate scratch trees.
+
+    Baseline failure is an observation, not proof that the test is meaningful:
+    dependency/configuration drift can also produce a failing baseline.
+    """
+    if not allow_execute or not policy["modules"]["regression"] or not policy["modules"]["tests"]:
+        raise OpsError("Regression sensitivity requires enabled tests/regression and explicit approval")
+    if "tests" not in policy["commands"]:
+        raise OpsError("Configured test command missing")
+    if not isinstance(base_sha, str) or not SHA.fullmatch(base_sha):
+        raise OpsError("Exact baseline SHA required")
+    if not isinstance(test_paths, list) or not 1 <= len(test_paths) <= 24:
+        raise OpsError("Explicit bounded changed test paths required")
+    repo = Path(repo)
+    root = _scratch(repo, scratch)
+    head = _repo_head(repo)
+    if expected_sha is not None and expected_sha != head:
+        raise OpsError("Candidate SHA mismatch")
+    if head == base_sha:
+        raise OpsError("Baseline and candidate cannot be identical")
+    for value in test_paths:
+        if (not isinstance(value, str) or len(value) > 400 or
+                PurePosixPath(value).is_absolute() or
+                any(part in ("", ".", "..", ".git") for part in PurePosixPath(value).parts) or
+                len(PurePosixPath(value).parts) < 2):
+            raise OpsError("Unsafe test path")
+    # Neither user checkout nor another worktree is modified; only fresh
+    # disposable copies in the caller's explicitly selected scratch directory.
+    candidate = _extract_archive(repo, root, head)
+    baseline = _extract_archive(repo, root, base_sha)
+    for value in test_paths:
+        source = candidate.joinpath(*PurePosixPath(value).parts)
+        target = baseline.joinpath(*PurePosixPath(value).parts)
+        if (source.is_symlink() or not source.is_file() or
+                source.stat().st_size > 1_048_576 or
+                any(part.is_symlink() for part in source.parents if part != candidate)):
+            raise OpsError("Changed test path unavailable, symlinked or oversized")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.is_symlink() or (target.exists() and not target.is_file()):
+            raise OpsError("Unsafe baseline test target")
+        shutil.copyfile(source, target)
+    current = _execute("tests", policy, candidate, candidate.parent, head,
+                       allow_credentials=allow_credentials)
+    if current["status"] != "passed":
+        return {"status": "candidate-failed", "candidate": current, "baseline": None,
+                "proves_test_quality": False, "explanation": "Candidate tests did not pass"}
+    old = _execute("tests", policy, baseline, baseline.parent, base_sha,
+                   allow_credentials=allow_credentials)
+    state = ("baseline-failure-observed" if old["status"] == "failed"
+             else "no-sensitivity-observed" if old["status"] == "passed"
+             else "inconclusive")
+    return {"status": state, "candidate": current, "baseline": old,
+            "test_paths": test_paths, "proves_test_quality": False,
+            "explanation": ("A baseline failure might be a meaningful regression test "
+                            "or unrelated incompatibility; inspect assertion results")}
+
 def hook_allowed(kind: str, policy: dict, *, branch: str,
                  updates: list[str] | None = None) -> bool:
     if not policy["modules"]["hooks"] or kind not in ("pre-commit", "pre-push"):
@@ -510,7 +572,7 @@ def pipeline(policy: dict, repo: Path, scratch: Path, *, allow_execute=False,
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("status", "plan", "run", "pipeline",
+    parser.add_argument("action", choices=("status", "plan", "run", "pipeline", "sensitivity",
                     "ship", "hook", "install-hooks", "uninstall-hooks"))
     parser.add_argument("stage", nargs="?", help="run stage or hook name")
     parser.add_argument("--repo", type=Path, default=Path.cwd())
@@ -523,6 +585,8 @@ def main() -> int:
     parser.add_argument("--allow-install", action="store_true")
     parser.add_argument("--verified", action="store_true")
     parser.add_argument("--rounds", type=int)
+    parser.add_argument("--base-sha")
+    parser.add_argument("--test-path", action="append", default=[])
     args = parser.parse_args()
     try:
         repo = args.repo.absolute()
@@ -548,6 +612,14 @@ def main() -> int:
                               allow_credentials=args.allow_credentials,
                               expected_sha=args.expected_sha,
                               requirements=args.requirements, rounds=args.rounds)
+        elif args.action == "sensitivity":
+            if not args.scratch:
+                raise OpsError("Explicit --scratch required")
+            result = regression_sensitivity(policy, repo, args.scratch,
+                  base_sha=args.base_sha, test_paths=args.test_path,
+                  allow_execute=args.allow_execute,
+                  allow_credentials=args.allow_credentials,
+                  expected_sha=args.expected_sha)
         elif args.action == "ship":
             result = ship_plan(policy, repo, verified=args.verified)
         elif args.action == "install-hooks":
