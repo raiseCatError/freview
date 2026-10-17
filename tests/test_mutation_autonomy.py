@@ -116,6 +116,28 @@ class AutonomyMutationTests(unittest.TestCase):
         self.assertEqual(len(result["executions"]),2)
         self.assertIsNone(result["shipping"])
 
+    def test_committed_stale_mutation_report_does_not_count_as_new_execution(self):
+        cached=self.repo/"reports"/"mutation"
+        cached.mkdir(parents=True)
+        (cached/"mutation.json").write_text(json.dumps(REPORT))
+        git(self.repo,"add",".")
+        git(self.repo,"commit","-qm","cached old mutation report")
+        self.sha=git(self.repo,"rev-parse","HEAD")
+        policy=self.policy()
+        policy["commands"]["mutation"]=[sys.executable,"-c","pass"]
+        result=self.run_pipeline(policy)
+        self.assertEqual(result["verdict"],"mutation-inconclusive")
+        self.assertFalse(result["mutation_quality"]["quality_pass"])
+        self.assertEqual(result["mutation_quality"]["reason_code"],"report-not-updated")
+        self.assertIsNone(result["shipping"])
+
+    def test_optional_shipping_mutation_requirement_blocks_missing_module(self):
+        policy=self.policy(mutation=False)
+        policy["autonomy"]["require_mutation_for_shipping"]=True
+        result=self.run_pipeline(policy)
+        self.assertEqual(result["verdict"],"mutation-required")
+        self.assertIsNone(result["shipping"])
+
     def test_policy_rejects_unknown_formats_and_invalid_limits(self):
         for patch in ({"mutation_quality":{"format":"unknown"}},
                       {"autonomy":{"max_stage_runs":33}},
